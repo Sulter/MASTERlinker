@@ -55,8 +55,19 @@ class url_info_finder():
             
         if "text" in header_content_type: #resolve normal text type site - get the "title"
             #if it's a normal text/html we just find the title heads, except if it's a youtube video
+            #needs cleaning up!
             if ".youtube." in source.geturl():
-                return self.yt_info(source.geturl())
+                yt = self.yt_info(source.geturl())
+                if yt is None:
+                    return_string = self.get_title(source, url)
+                else:
+                    return yt
+            elif "github.com" in url:
+                git = self.github_info(url)
+                if git is None:
+                    return_string = self.get_title(source, url)
+                else:
+                    return git
             else:
                 return_string = self.get_title(source, url)
            
@@ -81,6 +92,26 @@ class url_info_finder():
 
             return redirect_warning + return_string
 
+    def github_info(self, url):
+        result = re.search("(?:.com)(/\S+/\S+)", url)
+        if result is not None:
+            result = result.group(1)
+            api_url = "https://api.github.com/repos" + result
+            logging.debug("api url:%s", api_url)
+            try:
+                result = simplejson.load(urllib2.urlopen(api_url))
+            except:
+                logging.debug("url_finder error: github error, either urllib or simplejson fail")
+                return None
+
+            name = result["name"]
+            description = result["description"]
+            language = result["language"]
+    
+            return "|GITHUB| " + name + " - " + description + " | >" + language
+        else:
+            return None
+
     def yt_info(self, url):
         yt_ID =  re.search("(\?|\&)v=([a-zA-Z0-9_-]*)", url)
         
@@ -103,7 +134,7 @@ class url_info_finder():
         try:
            result = simplejson.load(urllib2.urlopen(api_url))
         except:
-            logging.debug("url_finder error: youtube error, either urllib or simplejosn load fail")
+            logging.debug("url_finder error: youtube error, either urllib or simplejson fail")
             return None
     
         if not result["items"]:
@@ -121,7 +152,7 @@ class url_info_finder():
         dislikes = stats["dislikeCount"]
         likes = stats["likeCount"]
         comments = stats["commentCount"]
-        return "Youtube: " + title + " | " + duration +" |"  # additional info, not in use views: " + views +" | d: " + dislikes +" l: " + likes +" | comments: " + comments
+        return "|YOUTUBE| " + title + " | " + duration +" |"  # additional info, not in use views: " + views +" | d: " + dislikes +" l: " + likes +" | comments: " + comments
 
     def get_title(self, source, url):
 
