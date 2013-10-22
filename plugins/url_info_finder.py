@@ -12,12 +12,18 @@ class url_info_finder():
     
     def url_info_finder(self, main_ref, msg_info):
         #we block private msg, to prevent from flooding/api usage etc.
-        if msg_info["channel"] == msg_info["nick"]:
+        if msg_info["channel"] == settings.NICK:
             return None
         
-        #find all url links in the message, and send info about them (if any)
-        for url_info in self.parse_msg(msg_info["message"]):
-            main_ref.send_msg(msg_info["channel"], url_info) 
+        #find all url links in the message, and send info about them, in one formatted string
+        info_string = ""
+        url_info_list = self.parse_msg(msg_info["message"])
+        for i, url_info in enumerate(url_info_list):
+            info_string = info_string + url_info
+            if i != len(url_info_list)-1:
+                info_string = info_string + "\x0F  ...  "
+            
+        main_ref.send_msg(msg_info["channel"], info_string[0:450]) 
 
     def bytestring(self, n):
         tiers = ['B', 'KB', 'MB', 'GB']
@@ -29,6 +35,11 @@ class url_info_finder():
 
     def get_url_info(self, url, ignore_redirects = False):
 
+        #add http:// to www.-only links
+        if "https://" not in url:
+            if "http://" not in url:
+                url = "http://" + url
+
         #open url
         try:
             opener = urllib2.build_opener()
@@ -36,12 +47,12 @@ class url_info_finder():
             source = opener.open(url)
             logging.debug("url open:%s", url)
         except:
-            logging.debug("url_finder error: could not open site")
+            logging.debug("url_finder error: could not open site - %s", url)
             return None
         
         redirect_warning = ""
         if source.geturl() != url and ignore_redirects is False:
-            redirect_warning = "(!*REDIRECT*!) "
+            redirect_warning = "|REDIRECT| "
             
         #remove the "/" ending, if any
         url = url.rstrip("/")
@@ -88,7 +99,7 @@ class url_info_finder():
                 new_url = url.rstrip(search_res.group())
                 img_title = self.get_url_info(new_url, True)
                 if img_title is not None:
-                    return_string = (img_title.lstrip()).rstrip() + " " + return_string
+                    return_string = (img_title.lstrip()).rstrip() + " | " + return_string
 
             return redirect_warning + return_string
 
@@ -172,7 +183,7 @@ class url_info_finder():
         return string
 
     def find_urls(self, text):
-        URL_REGEX = re.compile(r'''((http://|https://)[^ <>'"{}|\\^`[\]]*)''')
+        URL_REGEX = re.compile(r'''((http://|https://|www.)[^ <>'"{}|\\^`[\]]*)''')
         url_array = []
         for url in re.findall(URL_REGEX, text):
             url_array.append(url[0]) #only 0 because 1 will always just be http:// / https://
@@ -190,14 +201,16 @@ class url_info_finder():
                 logging.debug("url_finder error: couldn't parse with lxml")
                 info = None
             if info is not None:
-
+                #add a pracet at the beginning and end
+                info = "[" + info + "]"
                 #the color code for the message (green), the 0x02 is just a hack
-                color = "\x033\x02\x02"
-                end_color =""
+                color = "\x033"
                 #if NSFW found in msg, mark it red
                 if re.search(r'(nsfw|NSFW)', msg) is not None:
-                    color = "\x030,4\x02\x02"
-                    end_color ="\0x03"
+                    color = "\x030,4"
+                #if NSFL found in msg, mark it other color
+                if re.search(r'(nsfl|NSFL)', msg) is not None:
+                    color = "\x030,6"
                 #sanitizing the message
                 #remove newlines etc.
                 forbidden = ["\n", "\r", "\t", "\f", "\v"]
@@ -209,7 +222,7 @@ class url_info_finder():
                 #make sure it isn't longer then 150
                 info = info[0:150]
 
-                info_message = '%s%s%s' % (color, info, end_color)
+                info_message = '%s%s' % (color, info)
                 url_info.append(info_message)
 
         return url_info

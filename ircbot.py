@@ -80,8 +80,6 @@ class botframe():
         
     def get_channel(self, string, nick):
         channel = re.search(r"^[\S]+", string).group()
-        if channel == settings.NICK:
-            channel = nick
         return channel
 
     def get_msg(self, string, current_channel):
@@ -89,6 +87,8 @@ class botframe():
         parsed_msg = string.lstrip(current_channel)
         parsed_msg = parsed_msg.lstrip()
         parsed_msg = parsed_msg.lstrip(":")
+        #sanitize from formatting (color codes etc.) - thank you Kuraitou
+        parsed_msg = re.sub('(\x02)|(\x07)|(\x0F)|(\x16)|(\x1F)|(\x03(\d{1,2}(,\d{1,2})?)?)', '', parsed_msg)
         return parsed_msg
 
     def get_nick(self, string):
@@ -129,5 +129,4 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', filename='ircbot.log',level=getattr(logging, settings.logging_level))
     ircbot = botframe()
     ircbot.main()
-
 
