@@ -3,6 +3,7 @@
 
 import re
 import urllib2
+from cookielib import CookieJar
 import lxml.html
 import simplejson
 import logging
@@ -42,7 +43,8 @@ class url_info_finder():
 
         #open url
         try:
-            opener = urllib2.build_opener()
+            cj = CookieJar()
+            opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
             opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
             source = opener.open(url)
             logging.debug("url open:%s", url)
