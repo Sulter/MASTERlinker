@@ -121,8 +121,16 @@ class url_info_finder():
             name = result["name"]
             description = result["description"]
             language = result["language"]
+
+            return_string = "|GITHUB| "
+            if name:
+                return_string = return_string + name
+            if description:
+                return_string = return_string + " - " + description
+            if language:
+                return_string = return_string + " | >" + language
     
-            return "|GITHUB| " + name + " - " + description + " | >" + language
+            return return_string
         else:
             return None
 
