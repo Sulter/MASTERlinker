@@ -1,5 +1,6 @@
+#this plugin tacks number of lines written by users, on the channels the bot is connected to
+
 import sqlite3
-import re
 import settings
 import time
 
@@ -29,8 +30,8 @@ class stats():
         if result[0][0]+5 > int(time.time()):
             return None
         
-        top5 = re.search("^\^top3", msg)
-        if top5 is not None:
+        #look
+        if msg.startswith("^top3"):
             result = self.cursor.execute("SELECT nickname,lines FROM nickstats ORDER BY lines DESC")
             string = ""
             for i, row in enumerate(result.fetchall()[:3]):
@@ -40,9 +41,11 @@ class stats():
             self.update_req_time(msg_info["nick"])
             return None
         
-        nick_stat = re.search("^(\^nick) (\S+)", msg)
-        if nick_stat is not None:
-            result = self.cursor.execute("SELECT nickname,lines FROM nickstats WHERE nickname=?", (nick_stat.group(2),))
+        if msg.startswith("^nick "):
+            lookup_nick = msg.split(" ")
+            if not lookup_nick[1]:
+                return None
+            result = self.cursor.execute("SELECT nickname,lines FROM nickstats WHERE nickname=?", (lookup_nick[1],))
             if result:
                 for row in result.fetchall():
                     string = row[0] + ": " + str(row[1]) + "lines"
@@ -50,9 +53,7 @@ class stats():
                     self.update_req_time(msg_info["nick"])
                     return None
 
-
-        info = re.search("^(info)", msg)
-        if info is not None:
+        if msg.startswith("info"):
             string = "************************ THIS IS THE STATS PLUGIN OF " + settings.NICK  + " ************************"
             main_ref.send_msg(msg_info["nick"], string)
             string = "All commands start with ^"

@@ -23,8 +23,9 @@ class url_info_finder():
             info_string = info_string + url_info
             if i != len(url_info_list)-1:
                 info_string = info_string + "\x0F  ...  "
-            
-        main_ref.send_msg(msg_info["channel"], info_string[0:450]) 
+        
+        if info_string:
+            main_ref.send_msg(msg_info["channel"], info_string[0:450]) 
 
     def bytestring(self, n):
         tiers = ['B', 'KB', 'MB', 'GB']
@@ -40,7 +41,7 @@ class url_info_finder():
         if "https://" not in url:
             if "http://" not in url:
                 url = "http://" + url
-
+                
         #open url
         try:
             cj = CookieJar()
@@ -185,10 +186,13 @@ class url_info_finder():
         return string
 
     def find_urls(self, text):
-        URL_REGEX = re.compile(r'''((http://|https://|www.)[^ <>'"{}|\\^`[\]]*)''')
+        URL_REGEX = "((http://|https://|www.)\S+)|(\S+\.(com|([a-z][a-z]|biz|gov|info|mil|net|org|name|edu|coop|aero|musem|asia|int|xxx|jobs|travel))\S*)"
         url_array = []
         for url in re.findall(URL_REGEX, text):
-            url_array.append(url[0]) #only 0 because 1 will always just be http:// / https://
+            if url[0]:
+                url_array.append(url[0]) #if starts with http https or www
+            elif url[2]:
+                url_array.append(url[2]) #if a other type of link
         return url_array
 
     def parse_msg(self, msg):
