@@ -107,9 +107,9 @@ class url_info_finder():
             return redirect_warning + return_string
 
     def github_info(self, url):
-        result = re.search("(?:.com)(/\S+/\S+)", url)
+        result = re.search("(\.com)(/[^ /]+/[^ /]+$)", url)
         if result is not None:
-            result = result.group(1)
+            result = result.group(2)
             api_url = "https://api.github.com/repos" + result
             logging.debug("api url:%s", api_url)
             try:
@@ -117,22 +117,18 @@ class url_info_finder():
             except:
                 logging.debug("url_finder error: github error, either urllib or simplejson fail")
                 return None
-
+            
             #make sure it's a dictionary, otherwise we might not be looking at a repo at all!
             if not isinstance(result, dict):
                 return None
-
-            name = result["name"]
-            description = result["description"]
-            language = result["language"]
-
+            
             return_string = "|GITHUB| "
-            if name:
-                return_string = return_string + name
-            if description:
-                return_string = return_string + " - " + description
-            if language:
-                return_string = return_string + " | >" + language
+            if "name" in result and result["name"]:
+                return_string = return_string + result["name"]
+            if "description" in result and result["description"]:
+                return_string = return_string + " - " + result["description"]
+            if "language" in result and result["language"]:
+                return_string = return_string + " | >" + result["language"]
     
             return return_string
         else:
