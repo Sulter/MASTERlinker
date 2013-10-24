@@ -118,6 +118,10 @@ class url_info_finder():
                 logging.debug("url_finder error: github error, either urllib or simplejson fail")
                 return None
 
+            #make sure it's a dictionary, otherwise we might not be looking at a repo at all!
+            if not isinstance(result, dict):
+                return None
+
             name = result["name"]
             description = result["description"]
             language = result["language"]
