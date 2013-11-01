@@ -99,10 +99,11 @@ class url_info_finder():
             if "i.imgur.com" in url: #we check the title of the album
                 rex = '(.gif|.png|.jpeg|.img|.jpg|.bmp)\Z'  #common image formats, search at end of string
                 search_res = re.search(rex, url)
-                new_url = url.rstrip(search_res.group())
-                img_title = self.get_url_info(new_url, True)
-                if img_title is not None:
-                    return_string = (img_title.lstrip()).rstrip() + " | " + return_string
+                if search_res: #only if it is formatted the way we expect (with one of the image formats at the end) (I should probably use the imgur api instead though)
+                    new_url = url.rstrip(search_res.group())
+                    img_title = self.get_url_info(new_url, True)
+                    if img_title is not None:
+                        return_string = (img_title.lstrip()).rstrip() + " | " + return_string
 
             return redirect_warning + return_string
 
@@ -169,7 +170,7 @@ class url_info_finder():
         snippet = l["snippet"]
     
         title = snippet["title"]
-        duration = details["duration"].replace("PT", "")
+        duration = (details["duration"].replace("PT", "")).lower()
         views =  stats["viewCount"]
         dislikes = stats["dislikeCount"]
         likes = stats["likeCount"]
