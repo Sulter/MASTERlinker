@@ -67,7 +67,10 @@ class url_info_finder():
             logging.debug("url_finder error: header - invalid. url: %s", url)
             source.close()
             return None
-            
+        
+        if not header_content_type:  #if no content-type header, we assume text, we should probably look for a "magic number"
+            header_content_type = "text"
+        
         if "text" in header_content_type: #resolve normal text type site - get the "title"
             #if it's a normal text/html we just find the title heads, except if it's a youtube video
             #needs cleaning up!
