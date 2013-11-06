@@ -65,6 +65,7 @@ class url_info_finder():
             header_content_type = source.info().getheader("Content-type")
         except: 
             logging.debug("url_finder error: header - invalid. url: %s", url)
+            source.close()
             return None
             
         if "text" in header_content_type: #resolve normal text type site - get the "title"
@@ -75,20 +76,25 @@ class url_info_finder():
                 if yt is None:
                     return_string = self.get_title(source, url)
                 else:
+                    source.close()
                     return yt
+
             elif "github.com" in url:
                 git = self.github_info(url)
                 if git is None:
                     return_string = self.get_title(source, url)
                 else:
+                    source.close()
                     return git
             else:
                 return_string = self.get_title(source, url)
            
             if return_string is not None:
                 return_string = (return_string.lstrip()).rstrip()  
+                source.close()
                 return redirect_warning + return_string
             else:
+                source.close()
                 return None
 
         else: #other types, just show the content type and content lenght (if any!)
@@ -104,7 +110,7 @@ class url_info_finder():
                     img_title = self.get_url_info(new_url, True)
                     if img_title is not None:
                         return_string = (img_title.lstrip()).rstrip() + " | " + return_string
-
+            source.close()
             return redirect_warning + return_string
 
     def github_info(self, url):
@@ -181,7 +187,7 @@ class url_info_finder():
 
         #get the html
         try:
-            t = lxml.html.parse(source)
+            t = lxml.html.fromstring(source.read(8064)) #make sure it won't load more then that, because then we might run out of memory
         except:
             logging.debug("url_finder error: couldn't parse with lxml")
             return None
