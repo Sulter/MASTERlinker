@@ -8,6 +8,7 @@ import struct
 import threading
 import select
 import settings
+import logging
 
 class wsserver():
    def __init__(self):
@@ -45,8 +46,9 @@ class WsServerThread(threading.Thread):
          for reader in ready_to_read:
             if reader == self.sserver: #this will be true if there are sockets that can be accepted
                clientsocket, address = self.sserver.accept()
-               if self.handshake(clientsocket) is True: #only add socket to the list if the handshake succeeded
+               if self.handshake(clientsocket) is True and len(self.client_list) < 100: #only add socket to the list if the handshake succeeded AND we have less then 100 connections already!
                   self.client_list.append(clientsocket)
+                  logging.debug("wsserver: connection accepted from: %s", str(address))
             else: #one of the other sockets has a message for us, but we only check if it's empty, because that means the socket closed
                m = ""
                try:

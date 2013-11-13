@@ -8,6 +8,8 @@ import lxml.html
 import simplejson
 import logging
 import settings
+import threading
+
 
 class url_info_finder():
     
@@ -15,7 +17,12 @@ class url_info_finder():
         #we block private msg, to prevent from flooding/api usage etc.
         if msg_info["channel"] == settings.NICK:
             return None
-        
+
+        #for each message we start a new thread, because this can be pretty slow (sometimes very slow with dns lookups etc.)
+        thread = threading.Thread(target = self.start_thread, args=(main_ref, msg_info))
+        thread.start()
+
+    def start_thread(self, main_ref, msg_info):
         #find all url links in the message, and send info about them, in one formatted string
         info_string = ""
         url_info_list = self.parse_msg(msg_info["message"])
@@ -73,7 +80,7 @@ class url_info_finder():
             source.close()
             return "!this webserver might be malicious! detected content-type: " + detected_file_header[1:4]
                     
-        if "text" in header_content_type: #resolve normal text type site - get the "title"
+        if "html" in header_content_type: #resolve normal text type site - get the "title"
             #if it's a normal text/html we just find the title heads, except if it's a youtube video
             #needs cleaning up!
             if ".youtube." in source.geturl():
@@ -192,7 +199,7 @@ class url_info_finder():
 
         #get the html
         try:
-            t = lxml.html.fromstring(source.read(8064)) #make sure it won't load more then that, because then we might run out of memory
+            t = lxml.html.fromstring(source.read(32768)) #make sure it won't load more then that, because then we might run out of memory
         except:
             logging.debug("url_finder error: couldn't parse with lxml")
             return None

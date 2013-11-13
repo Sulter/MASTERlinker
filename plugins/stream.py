@@ -1,10 +1,10 @@
-#annouces when one of the "streamers" starts streaming.
+#simple example of how a plugin should look like
+#this plugin simply makes the bot responde with a simple string to every message received.
 
 import time
 import threading
 import simplejson
 import urllib2
-import settings
 
 def set_interval(func, sec):
     def func_wrapper():
@@ -24,9 +24,9 @@ class streamer():
 class stream():
 
     def __init__(self):
-        set_interval(self.check_streams, 60) 
-        self.channel = "#vidyadev"   #!should take all this info from settings.py!********
-        self.streamer_list = [streamer("https://api.twitch.tv/kraken/streams/argoneus", "argoneus", "http://www.twitch.tv/argoneus"), streamer("https://api.twitch.tv/kraken/streams/satatami", "Plesioth", "http://www.twitch.tv/satatami"), streamer("http://api.justin.tv/api/stream/list.json?channel=streamingstrandberg", "ssstrandberg", "http://www.justin.tv/streamingstrandberg"), streamer("https://api.twitch.tv/kraken/streams/mechacrash", "MechaCrash", "http://www.twitch.tv/mechacrash"), streamer("https://api.twitch.tv/kraken/streams/mortvert_", "Mortvert", "http://twitch.tv/mortvert_")]
+        set_interval(self.check_streams, 60)
+        self.channel = "#vidyadev"
+        self.streamer_list = [streamer("https://api.twitch.tv/kraken/streams/argoneus", "argoneus", "http://www.twitch.tv/argoneus"), streamer("https://api.twitch.tv/kraken/streams/satatami", "Plesioth", "http://www.twitch.tv/satatami"), streamer("http://api.justin.tv/api/stream/list.json?channel=streamingstrandberg", "sstrandberg", "http://www.justin.tv/streamingstrandberg"), streamer("https://api.twitch.tv/kraken/streams/mechacrash", "MechaCrash", "http://www.twitch.tv/mechacrash"), streamer("https://api.twitch.tv/kraken/streams/mortvert_", "Mortvert", "http://twitch.tv/mortvert_")]
 
     def check_streams(self):
         for streamer in self.streamer_list:
@@ -45,7 +45,10 @@ class stream():
                 if (result["stream"])["game"]:
                     title = (result["stream"])["game"]
                 string = "\x033|STREAM| " + streamer.name + " is streaming " + title + " at " + streamer.link
-                self.main_ref.send_msg(self.channel, string[0:450]) 
+                if string:
+                    self.main_ref.send_msg(self.channel, string[0:450]) 
+                else:
+                    print "some error with stream: on user: " + streamer.name
             elif streamer.online is True and not result["stream"]:
                 streamer.online = False
                 
@@ -59,10 +62,4 @@ class stream():
 
     def stream(self, main_ref, msg_info):
         self.main_ref = main_ref
-        if msg_info["channel"] == settings.NICK:
-            self.parse_msg(msg_info)
-            return None
-
-    def parse_msg(self, msg_info): #WIP
-        if "!stream" in msg_info["message"]:
-            return None
+        return None
