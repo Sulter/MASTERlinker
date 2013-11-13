@@ -6,13 +6,19 @@ import time
 import collections
 import logging
 import settings
+import threading
+import time
     
 class botframe():
 
     def __init__(self):
-        self.commands = collections.deque(".")
-        self.data_buffer = ''
+        self.commands = collections.deque()
+        self.data_buffer = ""
         self.rexp_general = re.compile(r'^(:[^ ]+)?[ ]*([^ ]+)[ ]+([^ ].*)?$')
+
+        self.msg_buffer = collections.deque()
+        self.msg_send_time = 0
+
         self.loaded_plugins = []
         self.load_plugins()
 
@@ -74,9 +80,27 @@ class botframe():
                 getattr(plugin, plugin_name)(self, msg_info)
             return
 
-    def send_msg(self, recipient, msg):
+    def send_msg(self, recipient, msg): #method for sending privmsg, takes care of timing etc. to prevent flooding
         command = 'PRIVMSG %s :%s\r\n' % (recipient, msg)
+        self.msg_buffer.append(command)
+
+        #schedule the message to be send, depending on the buffer size, 1message each 2 seconds. 
+        buffer_size = len(self.msg_buffer)
+        if buffer_size < 2: 
+            self.msg_time_diff = 2 - (time.time()-self.msg_send_time)
+            if self.msg_time_diff > 0:
+                self.send_from_buffer() #send the message momentary
+            else:
+                t = threading.Timer(self.msg_time_diff, self.send_from_buffer) #schedule for sending later (at least 2 seconds since last message)
+                t.start()
+        else:
+            t = threading.Timer(self.msg_time_diff+(2*(buffer_size-1)), self.send_from_buffer)
+            t.start()
+
+    def send_from_buffer(self):
+        command = self.msg_buffer.popleft()
         self.irc.send(command)
+        self.msg_send_time = time.time()
         
     def get_channel(self, string, nick):
         channel = re.search(r"^[\S]+", string).group()
@@ -97,13 +121,19 @@ class botframe():
         return nick[0]
 
     def receive_com(self):
-        
-        #parse commands from our command-buffer if empty
+        #parse commands from our command-buffer if *not* empty
         if self.commands:
             return self.commands.popleft()
         
         #read data from the socket
         data = self.irc.recv(4096)
+
+        #if the data is empty, the connection must be broken, we should reconnect
+        if not len(data):
+            logging.info('disconnected from network! will try to reconnect...')
+            self.irc.close()
+            self.connect()
+
         self.data_buffer = ''.join([self.data_buffer, data])
         #each IRC command ends with "\r\n", so we split the whole string at those points
         self.commands = collections.deque(self.data_buffer.split("\r\n"))
@@ -115,7 +145,6 @@ class botframe():
         return result
 
     def main(self):
-
         self.connect()
 
         while True:
@@ -129,4 +158,3 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', filename='ircbot.log',level=getattr(logging, settings.logging_level))
     ircbot = botframe()
     ircbot.main()
-

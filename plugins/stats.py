@@ -7,67 +7,13 @@ import re
 
 class stats():
     def stats(self, main_ref, msg_info):
-        #we check for commands in private messages
+        #we igonre prvt. messages
         if msg_info["channel"] == settings.NICK:
-            self.parse_msg(msg_info, main_ref)
             return None
 
         #count up the number of lines and words
         self.add_line_n_words(msg_info["nick"], msg_info["message"])
         
-    def parse_msg(self, msg_info, main_ref):
-        #first we make sure the string is encoded, if it can't be, we just ignore this private message
-        try:
-            msg = msg_info["message"]
-            msg = msg.encode('utf-8')
-        except:
-            return None
-        
-        #make sure that this user hasn't made request in the last, couple of seconds (to prevent flooding)
-        self.cursor.execute("INSERT OR IGNORE INTO nickstats(nickname, init_time) VALUES(?,?)", (msg_info["nick"],int(round(time.time(),0))))
-        self.connection.commit()
-        result = self.cursor.execute("SELECT time_last_req FROM nickstats WHERE nickname =?", (msg_info["nick"],))
-        result = result.fetchall()
-        if result[0][0]+5 > int(time.time()):
-            return None
-        
-        #commands lookup
-        if msg.startswith("^top3"):
-            result = self.cursor.execute("SELECT nickname,lines,words,init_time  FROM nickstats ORDER BY lines DESC")
-            string = ""
-            for i, row in enumerate(result.fetchall()[:3]):
-                words_hour =  str(row[2]/(((round(time.time()+1,0)) - row[3])*3600)) #this cluster also adds +1 to time, so we don't divide by 0 if the user has just been made
-                string = string + str(i+1) + ") " + row[0] + ": " + str(row[1]) + "lines " + str(row[2]) + "words " + words_hour +  "words/hour" + " | "
-                
-            main_ref.send_msg(msg_info["nick"], string)
-            self.update_req_time(msg_info["nick"])
-            return None
-        
-        if msg.startswith("^nick "):
-            lookup_nick = msg.split(" ")
-            if not lookup_nick[1]:
-                return None
-            result = self.cursor.execute("SELECT nickname,lines,words,init_time FROM nickstats WHERE nickname=?", (lookup_nick[1],))
-            if result:
-                for row in result.fetchall():
-                    words_hour =  str(row[2]/(((round(time.time(),0)) - row[3])*3600))
-                    string = row[0] + ": " + str(row[1]) + "lines " + str(row[2]) + "words " + words_hour +  "words/hour" + " | "
-                    main_ref.send_msg(msg_info["nick"], string)
-                    self.update_req_time(msg_info["nick"])
-                    return None
-
-        if msg.startswith("info"):
-            string = "************************ THIS IS THE STATS PLUGIN OF " + settings.NICK  + " ************************"
-            main_ref.send_msg(msg_info["nick"], string)
-            string = "All commands start with ^"
-            main_ref.send_msg(msg_info["nick"], string)
-            string = "^top3 - get top 3 of people with most lines"
-            main_ref.send_msg(msg_info["nick"], string)
-            string = "^nick <nickname> - get the current ranking of <nickname>"
-            main_ref.send_msg(msg_info["nick"], string)
-            self.update_req_time(msg_info["nick"])
-            return None
-
     def update_req_time(self, nick):
         self.cursor.execute("UPDATE nickstats SET time_last_req=? WHERE nickname=?", (int(time.time()), nick))
         self.connection.commit()
@@ -85,5 +31,5 @@ class stats():
         self.connection = sqlite3.connect(db_path)
         self.cursor = self.connection.cursor()
         #we first establish the table
-        self.cursor.execute('CREATE TABLE if not exists nickstats (Id INTEGER PRIMARY KEY, nickname TEXT UNIQUE, lines INT DEFAULT(0), words INT DEFAULT(0), time_last_req INT DEFAULT(0), init_time INT)')
+        self.cursor.execute('CREATE TABLE if not exists nickstats (Id INTEGER PRIMARY KEY, nickname TEXT UNIQUE, lines INT DEFAULT(0), words INT DEFAULT(0), init_time INT)')
         self.connection.commit()
