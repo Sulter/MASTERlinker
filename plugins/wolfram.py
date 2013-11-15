@@ -40,7 +40,7 @@ class wolfram():
                 if "success" in xml_response.attrib:
                     if "true" in xml_response.attrib["success"]:                #check if succeeded:
                         for pod in xml_response.findall("pod"):
-                            if "Result" in pod.attrib["title"] or "Solution" in pod.attrib["title"] or "Definition" in pod.attrib["title"] or "Basic properties" in pod.attrib["title"] or "Basic information" in pod.attrib["title"] or "Value" in pod.attrib["title"] or "Name" in pod.attrib["title"] or "Average result" in pod.attric["title"]: #fix this
+                            if "Result" in pod.attrib["title"] or "Solution" in pod.attrib["title"] or "Definition" in pod.attrib["title"] or "Basic properties" in pod.attrib["title"] or "Basic information" in pod.attrib["title"] or "Value" in pod.attrib["title"] or "Name" in pod.attrib["title"] or "Average result" in pod.attrib["title"]: #fix this
                                 response = pod.find("subpod").find("plaintext").text
                                 response = response.encode('utf-8')
                                 if response:
