@@ -8,6 +8,7 @@ import logging
 import settings
 import threading
 import time
+import ssl
     
 class botframe():
 
@@ -36,10 +37,12 @@ class botframe():
             
     def connect(self):
         self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if settings.SSL:
+            self.irc = ssl.wrap_socket(self.irc)
         self.irc.connect((settings.SERVER, settings.PORT))
         self.irc.send('NICK ' + settings.NICK + '\r\n')
         self.irc.send('USER ' + settings.NICK + ' muh python bot\r\n')
-        if settings.nick_serv_on is True:
+        if settings.nick_serv_on:
             self.irc.send('PRIVMSG ' + "NickServ" + ' :IDENTIFY %s %s\r\n' % (settings.nick_serv_nick, settings.nick_serv_pass))
             logging.info('Waiting for login...')
             time.sleep(15) #this should be replaced by waiting for " 396 YourNick unaffiliated/youraccount :is now your hidden host (set by services.)", but that is not standard, so I'm not sure.

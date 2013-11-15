@@ -1,10 +1,13 @@
 #basic variables required for the bot to connect and work
 SERVER = "irc.freenode.org"
-PORT = 6667
+PORT = 6667 #ssl freenode: 6697
 NICK = "MASTERlinker"
 channel_list = ["#testchannel200", "#testchannel201"]
 ignore_list = ["VidyaLink", "uglycharlie", "prettybenny"]
 logging_level = "DEBUG" #DEBUG -> INFO -> WARNING -> ERROR -> CRITICAL
+
+#SSL - False = off, True = on
+SSL = False
 
 #nickserver - False = off, True = on
 nick_serv_on = False 
@@ -23,3 +26,4 @@ plugins = ["url_info_finder", "respond"]
 
 #plugin-variables:
 yt_api_key = "the google API-key"
+wa_api_key = "the wolfram API-key"
