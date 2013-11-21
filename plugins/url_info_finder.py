@@ -199,7 +199,7 @@ class url_info_finder():
 
         #get the html
         try:
-            t = lxml.html.fromstring(source.read(32768)) #make sure it won't load more then that, because then we might run out of memory
+            t = lxml.html.fromstring(source.read(131072)) #make sure it won't load more then that, because then we might run out of memory
         except:
             logging.debug("url_finder error: couldn't parse with lxml")
             return None

@@ -23,8 +23,12 @@ class stats():
         self.cursor.execute("UPDATE nickstats SET words = words + ? WHERE nickname=?", (words, nick))
         self.connection.commit()
         #there is x chance that this phrase will be added as that persons "quote"
-        if random.random() > 0.95:
-            self.cursor.execute("UPDATE nickstats SET random_quote=? WHERE nickname=?", (msg, nick))
+        if random.random() > 0.99:
+            try: #catching encoding errors
+                self.cursor.execute("UPDATE nickstats SET random_quote=? WHERE nickname=?", (msg, nick))
+                self.connection.commit()
+            except:
+                return None
         
     def __init__(self):
         db_path="plugins/stats.db"
