@@ -12,7 +12,7 @@ class trackip():
         except urllib2.HTTPError:
             return None
 
-        response = "[" + adress + " | " + result["ip"] + " | contry:  " + result["country_name"] + " | city: " + result["city"] + " | map link: "
+        response = "[" + adress + " | " + result["ip"] + " | country:  " + result["country_name"] + " | city: " + result["city"] + " | map link: "
         map_link = "http://www.openstreetmap.org/#map=11/" + str(result["latitude"]) +"/" + str(result["longitude"])
         response = response + map_link
         response = "\x033" + response + "]"
