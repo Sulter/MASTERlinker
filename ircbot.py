@@ -64,7 +64,12 @@ class botframe():
         logging.debug(command)
         
         if cmd == 'PING':
-            self.irc.send('PONG ' + params + '\r\n')
+            try:
+                self.irc.send('PONG ' + params + '\r\n')
+            except: #if error, the pipe must be broken and we reconnect.
+                self.irc.close()
+                self.connect()
+                
             return
         elif cmd == 'PRIVMSG':
             #get the nick, channel (doesn't have to be channel) and message.
@@ -102,7 +107,11 @@ class botframe():
 
     def send_from_buffer(self):
         command = self.msg_buffer.popleft()
-        self.irc.send(command)
+        try:
+            self.irc.send(command)
+        except:
+            self.irc.close()
+            self.connect()
         self.msg_send_time = time.time()
         
     def get_channel(self, string, nick):
