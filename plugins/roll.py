@@ -15,6 +15,7 @@ class roll():
 		input = msg_info["message"].replace("!roll", "")
 		#If the string is not a number, we'll ignore the call.
 		if not self.is_number(input):
+			main_ref.send_msg(msg_info["channel"], "Invalid syntax. Please call '!roll n' where n is an integer.")
 			return None
 		number = int(input)
 		#Check if the number is over 1.
