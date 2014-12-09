@@ -18,15 +18,11 @@ class seen():
 		
 	#Manages the dictionary.
 	def managedict(self, main_ref, msg_info):
-		#Check to see if the dictionary is properly loaded.
-		self.checkdict()
 		#Update the data.
 		self.userdict[msg_info["nick"].lower()] = datetime.now()
 		
 	#Handles !seen
 	def handleseen(self, main_ref, msg_info):
-		#Check to see if the dictionary is properly loaded.
-		self.checkdict()
 		#We'll ignore any calls not starting with !seen.
 		if not msg_info["message"].startswith("!seen"):
 			return None
