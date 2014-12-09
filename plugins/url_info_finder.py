@@ -9,7 +9,8 @@ import simplejson
 import logging
 import settings
 import threading
-
+import sqlite3
+import time
 
 class url_info_finder():
     
@@ -23,7 +24,7 @@ class url_info_finder():
         thread.start()
 
     def start_thread(self, main_ref, msg_info):
-        #find all url links in the message, and send info about them, in one formatted string
+        #Find all url links in the message, and send info about them, in one formatted string
         info_string = ""
         url_info_list = self.parse_msg(msg_info["message"])
         for i, url_info in enumerate(url_info_list):
@@ -32,7 +33,47 @@ class url_info_finder():
                 info_string = info_string + "\x0F  ...  "
         
         if info_string:
-            main_ref.send_msg(msg_info["channel"], info_string[0:450]) 
+            #add a nice ending, if the message is too long
+            if len(info_string) > 440:
+                info_string[0:440]
+                info_string = info_string + "(...)]"
+            main_ref.send_msg(msg_info["channel"], info_string) 
+
+    def search_add_database(self, url):
+        #for each url, we add it to the database with time, and increase the counter
+        #returns number of times linked
+        
+        #we replace the usual prefix
+        url = url.replace("www.", "", 1)
+        url = url.replace("http://", "", 1)
+        url = url.replace("https://", "", 1)
+
+        print "we add url: " + url
+        
+        conn = sqlite3.connect(settings.url_sqlite3_db)
+        c = conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS URL (id INTEGER PRIMARY KEY, total INTEGER, url TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS URLS (id INTEGER PRIMARY KEY, url_ID INTEGER, time INTEGER)")
+
+        #find url if already in dbe
+        c.execute('SELECT * FROM URL WHERE url=?', (url,))
+        entry = c.fetchone()
+
+        if entry:
+            #increase counter and add entry
+            c.execute("UPDATE URL SET total=? WHERE url=?", (entry[1]+1, url))
+            c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, int(time.time()) ))
+
+            conn.commit()
+            return " |l:" + str(entry[1])
+
+        else:
+            #add to both tables
+            c.execute("INSERT INTO URL(total, url) VALUES(?,?)", (1, url))
+            c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, int(time.time()) ))
+
+            conn.commit()
+            return ""
 
     def bytestring(self, n):
         tiers = ['B', 'KB', 'MB', 'GB']
@@ -234,6 +275,8 @@ class url_info_finder():
                 logging.debug("url_finder error: couldn't parse with lxml")
                 info = None
             if info is not None:
+                #add info about number of times linked
+                info = info + self.search_add_database(url)
                 #add a pracet at the beginning and end
                 info = "[" + info + "]"
                 #the color code for the message (green), the 0x02 is just a hack
@@ -252,8 +295,10 @@ class url_info_finder():
 
                 #remove any empty start
                 info = info.lstrip()
-                #make sure it isn't longer then 150
-                info = info[0:150]
+                #make sure it isn't longer then 150, if it is, add a nice ending
+                if len(info) > 150:
+                    info = info[0:150]
+                    info = info + "(...)]"
 
                 info_message = '%s%s' % (color, info)
                 url_info.append(info_message)
