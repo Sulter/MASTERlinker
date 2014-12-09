@@ -1,7 +1,7 @@
 # A plugin that gives when the bot last saw the user.
 import settings
 from datetime import datetime
-from time import gmtime, strftime
+from time import strftime
 
 class seen():
 	# Main function.
@@ -21,7 +21,7 @@ class seen():
 		#Check to see if the dictionary is properly loaded.
 		self.checkdict()
 		#Update the data.
-		self.userdict[msg_info["nick"]] = datetime.now()
+		self.userdict[msg_info["nick"].lower()] = datetime.now()
 		
 	#Handles !seen
 	def handleseen(self, main_ref, msg_info):
@@ -33,9 +33,10 @@ class seen():
 		#Get the nick and strip its spaces.
 		nick = msg_info["message"].replace("!seen", "")
 		nick = nick.replace(" ", "")
+		nick = nick.lower()
 		#Determine the response.
 		if nick in self.userdict:
-			response = nick + " was last seen: "	+ strftime("%H:%M:%S %m-%d-%Y", gmtime())
+			response = nick + " was last seen: " + self.userdict[nick].strftime("%H:%M:%S %m-%d-%Y")
 		else:
 			response = "I haven't seen " + nick + "."
 		#Output response
@@ -52,10 +53,7 @@ class seen():
 		dummy = 0 #To solve the crashes
 
 	#Checks if the dict exists, and if it doesn't, create and load it.
-	def checkdict(self):
-		try:
-  			self.userdict = self.userdict
-		except AttributeError:
-  			self.userdict = {}
-			self.loadlist()
+	def __init__(self):
+		self.userdict = {}
+		self.loadlist()
 
