@@ -1,5 +1,4 @@
 # A plugin that gives information about the bot.
-from random import randrange
 import settings
 
 class about():
