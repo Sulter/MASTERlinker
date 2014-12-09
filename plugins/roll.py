@@ -16,12 +16,14 @@ class roll():
 		#If the string is not a number, we'll ignore the call.
 		if not self.is_number(input):
 			return None
-		number = (int)(input)
+		number = int(input)
 		#Check if the number is over 1.
 		if (number < 2):
 			return None
 		#Generate a random number and output it.
-		response = str(randrange(number))
+		response = msg_info["nick"] + " rolled a "
+		response += str(randrange(number) + 1)
+		response += "."
 		main_ref.send_msg(msg_info["channel"], response)
 
 	# Returns whether or not the string is a number based on if the cast errors.
