@@ -1,5 +1,6 @@
 # A plugin that rolls a random number based on a user-defined range.
 from random import randrange
+import settings
 
 class roll():
 	# Main function.
@@ -15,8 +16,12 @@ class roll():
 		#If the string is not a number, we'll ignore the call.
 		if not self.is_number(input):
 			return None
+		number = (int)(input)
+		#Check if the number is over 1.
+		if (number < 2):
+			return None
 		#Generate a random number and output it.
-		response = str(randrange((int)(input)))
+		response = str(randrange(number))
 		main_ref.send_msg(msg_info["channel"], response)
 
 	# Returns whether or not the string is a number based on if the cast errors.
