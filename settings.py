@@ -23,3 +23,8 @@ plugins = ["url_info_finder", "respond"]
 yt_api_key = "the google API-key"
 wa_api_key = "the wolfram API-key"
 url_sqlite3_db = "plugins/url_sql3.db"
+stream_channels = channel_list
+streamers = [
+("https://api.twitch.tv/kraken/streams/ChannelName", "Nickname", "http://www.twitch.tv/ChannelName"),
+("http://api.justin.tv/api/stream/list.json?channel=ChannelName", "Nickname", "http://www.justin.tv/ChannelName"),
+]

@@ -1,9 +1,10 @@
-#Sends a message to channels, when someone starts streaming. 
+#Sends a message to channels, when someone starts streaming. Currently supports twitch.tv and justin.tv
 
 import time
 import threading
 import simplejson
 import urllib2
+import settings
 
 def set_interval(func, sec):
     def func_wrapper():
@@ -24,8 +25,9 @@ class stream():
 
     def __init__(self):
         set_interval(self.check_streams, 60)
-        self.channel = "#vidyadev"
-        self.streamer_list = [streamer("https://api.twitch.tv/kraken/streams/argoneus", "argoneus", "http://www.twitch.tv/argoneus"), streamer("https://api.twitch.tv/kraken/streams/satatami", "Plesioth", "http://www.twitch.tv/satatami"), streamer("http://api.justin.tv/api/stream/list.json?channel=streamingstrandberg", "sstrandberg", "http://www.justin.tv/streamingstrandberg"), streamer("https://api.twitch.tv/kraken/streams/mechacrash", "MechaCrash", "http://www.twitch.tv/mechacrash"), streamer("https://api.twitch.tv/kraken/streams/mortvert_", "Mortvert", "http://twitch.tv/mortvert_")]
+        self.streamer_list = []
+        for stream in settings.streamers:
+            self.streamer_list.append(streamer(stream[0], stream[1], stream[2]))
 
     def check_streams(self):
         for streamer in self.streamer_list:
@@ -35,7 +37,6 @@ class stream():
         #check if we have a reference to the main module
 
         if not hasattr(self, 'main_ref'):
-            print "checkign works"
             return None
 
         try:
@@ -51,7 +52,8 @@ class stream():
                     title = (result["stream"])["game"]
                 string = "\x033|STREAM| " + streamer.name + " is streaming " + title + " at " + streamer.link
                 if string:
-                    self.main_ref.send_msg(self.channel, string[0:450]) 
+                    for chan in settings.stream_channels:
+                        self.main_ref.send_msg(chan, string[0:450]) 
                 else:
                     print "some error with stream: on user: " + streamer.name
             elif streamer.online is True and not result["stream"]:
@@ -61,7 +63,8 @@ class stream():
             if result and streamer.online is False:
                 streamer.online = True
                 string = "\x033|STREAM| " + streamer.name + " is streaming " + (result[0])["title"] + " at " + streamer.link
-                self.main_ref.send_msg(self.channel, string[0:450]) 
+                for chan in settings.stream_channels:
+                    self.main_ref.send_msg(chan, string[0:450]) 
             elif streamer.online is True and not result:
                 streamer.online = False
 
