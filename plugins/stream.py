@@ -1,5 +1,4 @@
-#simple example of how a plugin should look like
-#this plugin simply makes the bot responde with a simple string to every message received.
+#Sends a message to channels, when someone starts streaming. 
 
 import time
 import threading
@@ -33,6 +32,12 @@ class stream():
             self.check_stream(streamer)        
     
     def check_stream(self, streamer):
+        #check if we have a reference to the main module
+
+        if not hasattr(self, 'main_ref'):
+            print "checkign works"
+            return None
+
         try:
             result = simplejson.load(urllib2.urlopen(streamer.api_url))
         except:

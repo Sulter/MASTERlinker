@@ -48,7 +48,7 @@ class url_info_finder():
         url = url.replace("http://", "", 1)
         url = url.replace("https://", "", 1)
 
-        print "we add url: " + url
+        logging.debug("we add url: " + url)
         
         conn = sqlite3.connect(settings.url_sqlite3_db)
         c = conn.cursor()
