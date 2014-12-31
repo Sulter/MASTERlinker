@@ -2,6 +2,7 @@
 import settings
 import sqlite3
 import time
+import datetime
 
 class seen():
         # Main function.
@@ -42,8 +43,10 @@ class seen():
                         response = "I haven't seen " + nick + "."
 		else:#exists
 			t = row[0]
-			timeString = time.strftime("%H:%M %d-%m-%y", time.gmtime(t))
-                        response = "I saw " + nick + " " + timeString
+			timeNow = int(time.time())
+			diff = timeNow - t
+			timeString = str(datetime.timedelta(seconds=diff))
+                        response = "I saw " + nick + " " + timeString + " ago"
 
 		#Output response
 		main_ref.send_msg(msg_info["channel"], response)
