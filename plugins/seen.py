@@ -37,7 +37,10 @@ class seen():
 		nick = nick.lower()
 
 		#look for nick in db
-		self.cursor.execute("SELECT last_time FROM seen WHERE nickname=?", (nick,))
+		try:
+			self.cursor.execute("SELECT last_time FROM seen WHERE nickname=?", (nick,))
+		except: #catch non utf8 errors
+			return None
 		row = self.cursor.fetchone()
 		if not row:#doesn't exist
                         response = "I haven't seen " + nick + "."
