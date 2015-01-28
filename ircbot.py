@@ -9,6 +9,7 @@ import settings
 import threading
 import time
 import ssl
+import sys
     
 class botframe():
 
@@ -39,7 +40,16 @@ class botframe():
         self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if settings.SSL:
             self.irc = ssl.wrap_socket(self.irc)
-        self.irc.connect((settings.SERVER, settings.PORT))
+        try:
+            self.irc.connect((settings.SERVER, settings.PORT))
+        except socket.error as err:
+            if err.errno != 110: #110 is time-out errno
+                raise err
+            else:
+                logging.warning(format(err.errno, err.strerror))
+                logging.info('Trying to reconnect')
+                self.connect()
+            
         self.irc.send('NICK ' + settings.NICK + '\r\n')
         self.irc.send('USER ' + settings.NICK + ' muh python bot\r\n')
         if settings.nick_serv_on:
@@ -66,8 +76,10 @@ class botframe():
         if cmd == 'PING':
             try:
                 self.irc.send('PONG ' + params + '\r\n')
-            except: #if error, the pipe must be broken and we reconnect.
+            except:
                 self.irc.close()
+                logging.warning("Error with sockets: ", sys.exc_info()[0])
+                logging.info('Trying to reconnect')
                 self.connect()
                 
             return
@@ -111,6 +123,8 @@ class botframe():
             self.irc.send(command)
         except:
             self.irc.close()
+            logging.warning("Error with sockets: ", sys.exc_info()[0])
+            logging.info('Trying to reconnect')
             self.connect()
         self.msg_send_time = time.time()
         
@@ -142,8 +156,9 @@ class botframe():
 
         #if the data is empty, the connection must be broken, we should reconnect
         if not len(data):
-            logging.info('disconnected from network! will try to reconnect...')
+            logging.warning("Error with socket, pipe must be broken.")
             self.irc.close()
+            logging.info('Trying to reconnect')
             self.connect()
 
         self.data_buffer = ''.join([self.data_buffer, data])
