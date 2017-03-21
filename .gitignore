@@ -1,0 +1,5 @@
+.idea/
+database/
+ircbot.log
+__pycache__/
+*.pyc
