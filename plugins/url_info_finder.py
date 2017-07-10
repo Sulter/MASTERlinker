@@ -10,6 +10,9 @@ import settings
 import threading
 import sqlite3
 import time
+import datetime
+
+from includes.helpers import time_string
 
 TLDs = [
     "com",
@@ -47,7 +50,7 @@ class url_info_finder():
     def start_thread(self, main_ref, msg_info):
         # Find all url links in the message, and send info about them, in one formatted string
         info_string = ""
-        url_info_list = self.parse_msg(msg_info["message"])
+        url_info_list = self.parse_msg(msg_info["message"], msg_info["nick"])
         for i, url_info in enumerate(url_info_list):
             info_string = info_string + url_info
             if i != len(url_info_list) - 1:
@@ -60,9 +63,11 @@ class url_info_finder():
                 info_string = info_string + "(...)]"
             main_ref.send_msg(msg_info["channel"], info_string)
 
-    def search_add_database(self, url):
-        # For each url, we add it to the database with time, and increase the counter
-        # Returns number of times linked
+    def search_add_database(self, url, nick):
+        """
+        For each url, we add it to the database with time, and increase the counter
+        Returns number of times linked, first and last nick to link it
+        """
 
         # We replace the usual prefix
         url = url.replace("www.", "", 1)
@@ -73,26 +78,35 @@ class url_info_finder():
         db_path = "database/url_sql3.db"
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
-        c.execute("CREATE TABLE IF NOT EXISTS URL (id INTEGER PRIMARY KEY, total INTEGER, url TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS URLS (id INTEGER PRIMARY KEY, url_ID INTEGER, time INTEGER)")
+        # We could just SELECT all instances of the URL to determine nicks and times, but this is a speed vs memory tradeoff
+        c.execute("CREATE TABLE IF NOT EXISTS URL (id INTEGER PRIMARY KEY, total INTEGER, url TEXT, first_nick TEXT, first_time INT, last_nick TEXT, last_time INT)")
+        c.execute("CREATE TABLE IF NOT EXISTS URLS (id INTEGER PRIMARY KEY, url_ID INTEGER, time INTEGER, nick TEXT)")
 
-        # Find url if already in dbe
+        # Find url if already in db
         c.execute('SELECT * FROM URL WHERE url=?', (url,))
         entry = c.fetchone()
+        t = int(time.time())
 
         if entry:
+            key, total, url2, first_nick, t1, last_nick, t2, *tmp = entry
             # Increase counter and add entry
-            c.execute("UPDATE URL SET total=? WHERE url=?", (entry[1] + 1, url))
-            c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, int(time.time())))
-
+            c.execute("UPDATE URL SET total=?, last_nick=?, last_time=? WHERE url=?", (total + 1, nick, t, url))
+            c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, t))
             conn.commit()
-            return " |l:" + str(entry[1])
+
+            time_str_1 = time_string(datetime.timedelta(seconds=t-t1))
+            time_str_2 = time_string(datetime.timedelta(seconds=t-t2))
+            if total == 1:
+                return " |1: {} {}".format(first_nick, time_str_1)
+            elif first_nick == last_nick:
+                return " |1: {} {}, {}: {}".format(first_nick, time_str_1, str(total), time_str_2)
+            else:
+                return " |1: {} {}, {}: {} {}".format(first_nick, time_str_1, str(total), last_nick, time_str_2)
 
         else:
             # Add to both tables
-            c.execute("INSERT INTO URL(total, url) VALUES(?,?)", (1, url))
-            c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, int(time.time())))
-
+            c.execute("INSERT INTO URL(total, url, first_nick, first_time, last_nick, last_time) VALUES(?,?,?,?,?,?)", (1, url, nick, t, nick, t))
+            c.execute("INSERT INTO URLS(url_ID, time, nick) VALUES(?,?,?)", (c.lastrowid, t, nick))
             conn.commit()
             return ""
 
@@ -280,14 +294,14 @@ class url_info_finder():
                 url_array.append(url[2])  # if a other type of link
         return url_array
 
-    def parse_msg(self, msg):
+    def parse_msg(self, msg, nick):
         url_info = []
         # First we search it for links, if any found, send message with info about them, if any
         for url in self.find_urls(msg):
             info = self.get_url_info(url)
             if info is not None:
                 # Add info about number of times linked
-                info += self.search_add_database(url)
+                info += self.search_add_database(url, nick)
                 info = "[" + info + "]"
                 # The color code for the message (green), the 0x02 is just a hack
                 color = "\x033"

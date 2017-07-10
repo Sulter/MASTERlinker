@@ -1,5 +1,5 @@
 import settings
-import urllib.request, urllib.error, urllib.parse
+import urllib
 import json
 import re
 

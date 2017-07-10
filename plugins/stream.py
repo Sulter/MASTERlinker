@@ -2,7 +2,7 @@
 
 import threading
 import json
-import urllib.request, urllib.error, urllib.parse
+import urllib
 import settings
 
 

@@ -5,6 +5,8 @@ import sqlite3
 import time
 import datetime
 
+from includes.helpers import time_string
+
 
 class seen():
     def seen(self, main_ref, msg_info):
@@ -50,7 +52,7 @@ class seen():
             t = row[0]
             time_now = int(time.time())
             diff = time_now - t
-            time_string = str(datetime.timedelta(seconds=diff))
-            response = "I saw " + nick + " " + time_string + " ago"
+            time_str = time_string(datetime.timedelta(seconds=diff))
+            response = "I saw {} {}".format(nick, time_str)
 
         main_ref.send_msg(msg_info["channel"], response)
