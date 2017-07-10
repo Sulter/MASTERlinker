@@ -3,7 +3,8 @@
 import re
 import urllib
 from http.cookiejar import CookieJar
-import lxml.html
+#import lxml.html
+from bs4 import BeautifulSoup
 import json
 import logging
 import settings
@@ -178,26 +179,26 @@ class url_info_finder():
                 return_string = (return_string.lstrip()).rstrip()
                 source.close()
                 return redirect_warning + return_string, rdr_url
-            else:
-                source.close()
-                return None, rdr_url
+            #else:
+                #source.close()
+                #return None, rdr_url
 
-        else:  # Other types, just show the content type and content length (if any!)
-            return_string = source.info().get("Content-type")
-            if source.info().get("Content-Length") is not None:
-                return_string = return_string + " |  " + str(
-                    self.bytestring(int(source.info().get("Content-Length"))))
-            # Check for imgur
-            if "i.imgur.com" in url:  # we check the title of the album
-                rex = '(.gif|.png|.jpeg|.img|.jpg|.bmp)\Z'  # common image formats, search at end of string
-                search_res = re.search(rex, url)
-                if search_res:  # only if it is formatted the way we expect (with one of the image formats at the end) (I should probably use the imgur api instead though)
-                    new_url = url.rstrip(search_res.group())
-                    img_title = self.get_url_info(new_url, True)[0]
-                    if img_title is not None:
-                        return_string = (img_title.lstrip()).rstrip() + " | " + return_string
-            source.close()
-            return redirect_warning + return_string, rdr_url
+        # Fall through: Other types, just show the content type and content length (if any!)
+        return_string = source.info().get("Content-type")
+        if source.info().get("Content-Length") is not None:
+            return_string = return_string + " |  " + str(
+                self.bytestring(int(source.info().get("Content-Length"))))
+        # Check for imgur
+        if "i.imgur.com" in url:  # we check the title of the album
+            rex = '(.gif|.png|.jpeg|.img|.jpg|.bmp)\Z'  # common image formats, search at end of string
+            search_res = re.search(rex, url)
+            if search_res:  # only if it is formatted the way we expect (with one of the image formats at the end) (I should probably use the imgur api instead though)
+                new_url = url.rstrip(search_res.group())
+                img_title = self.get_url_info(new_url, True)[0]
+                if img_title is not None:
+                    return_string = (img_title.lstrip()).rstrip() + " | " + return_string
+        source.close()
+        return redirect_warning + return_string, rdr_url
 
     def github_info(self, url):
         result = re.search("(\.com)(/[^ /]+/[^ /]+$)", url)
@@ -272,19 +273,23 @@ class url_info_finder():
     def get_title(self, source, url):
         # Make sure it won't load more than 131072, because then we might run out of memory
         try:
-            t = lxml.html.fromstring(source.read(131072))
+            #t = lxml.html.fromstring(source.read(131072))
+            # BeautifulSoup is seemingly less tolerant, give it 2MB
+            soup = BeautifulSoup(source.read(2097152), 'html.parser')
         except:
-            logging.debug("url_finder error: couldn't parse with lxml")
+            #logging.debug("url_finder error: couldn't parse with lxml")
+            logging.debug("url_finder error: couldn't parse with beautifulsoup")
             return None
 
         try:
             # Hacky fix for utf8 titles not being detected
-            string = str(t.find(".//title").text.encode('latin1'), 'utf8')
+            #string = str(t.find(".//title").text.encode('latin1'), 'utf8')
+            return soup.title.string
         except:
             logging.debug("url_finder error: didn't find title tags")
             return None
 
-        return string
+        #return string
 
     def find_urls(self, text):
         url_array = []
