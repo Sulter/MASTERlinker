@@ -1,15 +1,37 @@
 # Plugin that searches for url links in each message, and sends a message with info about each link.
 
 import re
-import urllib.request, urllib.error, urllib.parse
+import urllib
 from http.cookiejar import CookieJar
 import lxml.html
-import simplejson
+import json
 import logging
 import settings
 import threading
 import sqlite3
 import time
+
+TLDs = [
+    "com",
+    "biz",
+    "edu",
+    "gov",
+    "int",
+    "mil",
+    "moe",
+    "net",
+    "org",
+    "xxx",
+    "aero",
+    "asia",
+    "coop",
+    "info",
+    "jobs",
+    "name",
+    "musem",
+    "travel",
+]
+url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)")
 
 
 class url_info_finder():
@@ -102,12 +124,12 @@ class url_info_finder():
 
         redirect_warning = ""
         if source.geturl() != url and ignore_redirects is False:
-            redirect_warning = "|REDIRECT| "
+            redirect_warning = "→"
 
         url = url.rstrip("/")
 
         try:
-            header_content_type = source.info().getheader("Content-type")
+            header_content_type = source.info().get("Content-type")
         except:
             logging.debug("url_finder error: header - invalid. url: %s", url)
             source.close()
@@ -147,10 +169,10 @@ class url_info_finder():
                 return None
 
         else:  # Other types, just show the content type and content length (if any!)
-            return_string = source.info().getheader("Content-type")
-            if source.info().getheader("Content-Length") is not None:
+            return_string = source.info().get("Content-type")
+            if source.info().get("Content-Length") is not None:
                 return_string = return_string + " |  " + str(
-                    self.bytestring(int(source.info().getheader("Content-Length"))))
+                    self.bytestring(int(source.info().get("Content-Length"))))
             # Check for imgur
             if "i.imgur.com" in url:  # we check the title of the album
                 rex = '(.gif|.png|.jpeg|.img|.jpg|.bmp)\Z'  # common image formats, search at end of string
@@ -170,9 +192,9 @@ class url_info_finder():
             api_url = "https://api.github.com/repos" + result
             logging.debug("api url:%s", api_url)
             try:
-                result = simplejson.load(urllib.request.urlopen(api_url))
+                result = json.load(urllib.request.urlopen(api_url))
             except:
-                logging.debug("url_finder error: github error, either urllib or simplejson fail")
+                logging.debug("url_finder error: github error, either urllib or json fail")
                 return None
 
             # Make sure it's a dictionary, otherwise we might not be looking at a repo at all!
@@ -211,9 +233,9 @@ class url_info_finder():
         logging.debug("api url:%s", api_url)
 
         try:
-            result = simplejson.load(urllib.request.urlopen(api_url))
+            result = json.load(urllib.request.urlopen(api_url))
         except:
-            logging.debug("url_finder error: youtube error, either urllib or simplejson fail")
+            logging.debug("url_finder error: youtube error, either urllib or json fail")
             return None
 
         if not result["items"]:
@@ -250,7 +272,6 @@ class url_info_finder():
         return string
 
     def find_urls(self, text):
-        url_regex = "((http://|https://|www.)\S+)|(\S+\.(com|([a-z][a-z]|biz|gov|info|mil|net|org|name|edu|coop|aero|musem|asia|int|xxx|jobs|travel))\S*)"
         url_array = []
         for url in re.findall(url_regex, text):
             if url[0]:
@@ -264,11 +285,6 @@ class url_info_finder():
         # First we search it for links, if any found, send message with info about them, if any
         for url in self.find_urls(msg):
             info = self.get_url_info(url)
-            try:
-                info = info.encode('utf-8')
-            except:
-                logging.debug("url_finder error: couldn't parse with lxml")
-                info = None
             if info is not None:
                 # Add info about number of times linked
                 info += self.search_add_database(url)

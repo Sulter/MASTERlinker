@@ -1,6 +1,6 @@
 import settings
 import urllib.request, urllib.error, urllib.parse
-import simplejson
+import json
 import re
 
 
@@ -18,7 +18,7 @@ class trackip():
     def get_info(self, adress):
         api = "http://freegeoip.net/json/" + adress
         try:
-            result = simplejson.load(urllib.request.urlopen(api))
+            result = json.load(urllib.request.urlopen(api))
         except urllib.error.HTTPError:
             return None
 

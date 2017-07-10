@@ -1,7 +1,7 @@
 # Sends a message to channels, when someone starts streaming. Currently supports twitch.tv and justin.tv
 
 import threading
-import simplejson
+import json
 import urllib.request, urllib.error, urllib.parse
 import settings
 
@@ -42,7 +42,7 @@ class stream():
             return None
 
         try:
-            result = simplejson.load(urllib.request.urlopen(streamer.api_url))
+            result = json.load(urllib.request.urlopen(streamer.api_url))
         except:
             return None
 
