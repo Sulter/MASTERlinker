@@ -34,7 +34,8 @@ TLDs = [
     "musem",
     "travel",
 ]
-url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)")
+url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)", re.IGNORECASE)
+url_prefix = re.compile("(https?://www\.)|(https?://|www\.)", re.IGNORECASE)
 
 
 class url_info_finder():
@@ -69,10 +70,10 @@ class url_info_finder():
         Returns number of times linked, first and last nick to link it
         """
 
-        # We replace the usual prefix
-        url = url.replace("www.", "", 1)
-        url = url.replace("http://", "", 1)
-        url = url.replace("https://", "", 1)
+        # We replace the usual prefix, and lowercase the hostname part
+        url = url_prefix.sub("", url, 1)
+        hostname, *tail = url.split("/", 1) + [""]  # Guarantees that tail will contain a non-empty list
+        url = "{}/{}".format(hostname.lower(), tail[0])
 
         logging.debug("we add url: " + url)
         db_path = "database/url_sql3.db"
@@ -120,9 +121,8 @@ class url_info_finder():
 
     def get_url_info(self, url, ignore_redirects=False):
 
-        if "https://" not in url:
-            if "http://" not in url:
-                url = "http://" + url
+        if "https://" not in url and "http://" not in url:
+            url = "http://" + url
 
         # Open url
         try:
@@ -134,10 +134,11 @@ class url_info_finder():
             logging.debug("url open:%s", url)
         except:
             logging.debug("url_finder error: could not open site - %s", url)
-            return None
+            return None, None
 
         redirect_warning = ""
-        if source.geturl() != url and ignore_redirects is False:
+        rdr_url = source.geturl()
+        if rdr_url != url and ignore_redirects is False:
             redirect_warning = "→"
 
         url = url.rstrip("/")
@@ -147,12 +148,12 @@ class url_info_finder():
         except:
             logging.debug("url_finder error: header - invalid. url: %s", url)
             source.close()
-            return None
+            return None, rdr_url
 
         if not header_content_type:
             detected_file_header = source.read(4)
             source.close()
-            return "!this webserver might be malicious! detected content-type: " + detected_file_header[1:4]
+            return "!this webserver might be malicious! detected content-type: " + detected_file_header[1:4], rdr_url
 
         if "html" in header_content_type:  # Resolve normal text type site - get the "title"
             # If it's a normal text/html we just find the title heads, except if it's a youtube video
@@ -162,7 +163,7 @@ class url_info_finder():
                     return_string = self.get_title(source, url)
                 else:
                     source.close()
-                    return yt
+                    return yt, rdr_url
 
             elif "github.com" in url:
                 git = self.github_info(url)
@@ -170,17 +171,17 @@ class url_info_finder():
                     return_string = self.get_title(source, url)
                 else:
                     source.close()
-                    return git
+                    return git, rdr_url
             else:
                 return_string = self.get_title(source, url)
 
             if return_string is not None:
                 return_string = (return_string.lstrip()).rstrip()
                 source.close()
-                return redirect_warning + return_string
+                return redirect_warning + return_string, rdr_url
             else:
                 source.close()
-                return None
+                return None, rdr_url
 
         else:  # Other types, just show the content type and content length (if any!)
             return_string = source.info().get("Content-type")
@@ -193,11 +194,11 @@ class url_info_finder():
                 search_res = re.search(rex, url)
                 if search_res:  # only if it is formatted the way we expect (with one of the image formats at the end) (I should probably use the imgur api instead though)
                     new_url = url.rstrip(search_res.group())
-                    img_title = self.get_url_info(new_url, True)
+                    img_title = self.get_url_info(new_url, True)[0]
                     if img_title is not None:
                         return_string = (img_title.lstrip()).rstrip() + " | " + return_string
             source.close()
-            return redirect_warning + return_string
+            return redirect_warning + return_string, rdr_url
 
     def github_info(self, url):
         result = re.search("(\.com)(/[^ /]+/[^ /]+$)", url)
@@ -298,7 +299,7 @@ class url_info_finder():
         url_info = []
         # First we search it for links, if any found, send message with info about them, if any
         for url in self.find_urls(msg):
-            info = self.get_url_info(url)
+            info, rdr_url = self.get_url_info(url)
             if info is not None:
                 # Add info about number of times linked
                 info += self.search_add_database(url, nick)
