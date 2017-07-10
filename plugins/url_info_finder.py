@@ -128,8 +128,7 @@ class url_info_finder():
         try:
             cj = CookieJar()
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-            opener.addheaders = [
-                ('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
+            opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
             source = opener.open(url)
             logging.debug("url open:%s", url)
         except:
@@ -279,7 +278,8 @@ class url_info_finder():
             return None
 
         try:
-            string = t.find(".//title").text
+            # Hacky fix for utf8 titles not being detected
+            string = str(t.find(".//title").text.encode('latin1'), 'utf8')
         except:
             logging.debug("url_finder error: didn't find title tags")
             return None
