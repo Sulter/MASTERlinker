@@ -130,10 +130,14 @@ class url_info_finder():
             cj = CookieJar()
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
             opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
-            source = opener.open(url)
+            url_safe = urllib.parse.quote(url, safe=":/")
+            source = opener.open(url_safe)
             logging.debug("url open:%s", url)
+            if url_safe != url:
+                logging.debug("url quoted to:%s", url)
         except:
             logging.debug("url_finder error: could not open site - %s", url)
+            raise
             return None, None
 
         redirect_warning = ""
