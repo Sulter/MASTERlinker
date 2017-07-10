@@ -1,8 +1,8 @@
 # Plugin that searches for url links in each message, and sends a message with info about each link.
 
 import re
-import urllib2
-from cookielib import CookieJar
+import urllib.request, urllib.error, urllib.parse
+from http.cookiejar import CookieJar
 import lxml.html
 import simplejson
 import logging
@@ -91,7 +91,7 @@ class url_info_finder():
         # Open url
         try:
             cj = CookieJar()
-            opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
             opener.addheaders = [
                 ('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
             source = opener.open(url)
@@ -170,7 +170,7 @@ class url_info_finder():
             api_url = "https://api.github.com/repos" + result
             logging.debug("api url:%s", api_url)
             try:
-                result = simplejson.load(urllib2.urlopen(api_url))
+                result = simplejson.load(urllib.request.urlopen(api_url))
             except:
                 logging.debug("url_finder error: github error, either urllib or simplejson fail")
                 return None
@@ -211,7 +211,7 @@ class url_info_finder():
         logging.debug("api url:%s", api_url)
 
         try:
-            result = simplejson.load(urllib2.urlopen(api_url))
+            result = simplejson.load(urllib.request.urlopen(api_url))
         except:
             logging.debug("url_finder error: youtube error, either urllib or simplejson fail")
             return None

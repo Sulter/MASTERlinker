@@ -42,8 +42,8 @@ class WsServerThread(threading.Thread):
             ready_to_read, ready_to_write, in_error = select.select([self.sserver] + self.client_list, [],
                                                                     [self.sserver] + self.client_list, 60)
             if in_error:
-                print "ERROR! in sockets"
-                print in_error
+                print("ERROR! in sockets")
+                print(in_error)
             for reader in ready_to_read:
                 if reader == self.sserver:  # this will be true if there are sockets that can be accepted
                     clientsocket, address = self.sserver.accept()
