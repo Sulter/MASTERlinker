@@ -1,6 +1,6 @@
 import settings
-import urllib2
-import simplejson
+import urllib
+import json
 import re
 
 
@@ -18,8 +18,8 @@ class trackip():
     def get_info(self, adress):
         api = "http://freegeoip.net/json/" + adress
         try:
-            result = simplejson.load(urllib2.urlopen(api))
-        except urllib2.HTTPError:
+            result = json.load(urllib.request.urlopen(api))
+        except urllib.error.HTTPError:
             return None
 
         response = "[" + adress + " | " + result["ip"] + " | country:  " + result["country_name"] + " | city: " + \

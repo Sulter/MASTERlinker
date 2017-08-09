@@ -1,8 +1,8 @@
 # Sends a message to channels, when someone starts streaming. Currently supports twitch.tv and justin.tv
 
 import threading
-import simplejson
-import urllib2
+import json
+import urllib
 import settings
 
 
@@ -42,7 +42,7 @@ class stream():
             return None
 
         try:
-            result = simplejson.load(urllib2.urlopen(streamer.api_url))
+            result = json.load(urllib.request.urlopen(streamer.api_url))
         except:
             return None
 
@@ -57,7 +57,7 @@ class stream():
                     for chan in settings.stream_channels:
                         self.main_ref.send_msg(chan, string[0:450])
                 else:
-                    print "some error with stream: on user: " + streamer.name
+                    print("some error with stream: on user: " + streamer.name)
             elif streamer.online is True and not result["stream"]:
                 streamer.online = False
 

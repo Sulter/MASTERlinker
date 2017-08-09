@@ -28,7 +28,7 @@ class DCC():
                 s.bind(("", port))
                 break
             except:
-                print "port was occupied, we try again"
+                print("port was occupied, we try again")
 
         s.listen(5)
 

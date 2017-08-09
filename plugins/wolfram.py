@@ -1,7 +1,7 @@
 # Plugin that uses the wolfram alpha api to solve equations etc.
 
 import xml.etree.ElementTree as xml
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import settings
 import logging
 import threading
@@ -22,7 +22,7 @@ class wolfram():
         if phrase:
             url = "http://api.wolframalpha.com/v2/query?input=" + phrase + "&appid=" + settings.wa_api_key
             try:
-                string = urllib2.urlopen(url).read(10000000)
+                string = urllib.request.urlopen(url).read(10000000)
             except:
                 logging.debug("wolfram alpha error could not open: %s", url)
                 return

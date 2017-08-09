@@ -35,6 +35,12 @@ class botframe():
         inst_ref = clsobj_ref()
         self.loaded_plugins.append(inst_ref)
 
+    def send(self, string):
+        try:
+            self.irc.send(bytes(string, 'utf-8'))
+        except:
+            logging.error('Send error')
+
     def connect(self):
         self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if settings.SSL:
@@ -49,10 +55,10 @@ class botframe():
                 logging.info('Trying to reconnect')
                 self.connect()
 
-        self.irc.send('NICK ' + settings.NICK + '\r\n')
-        self.irc.send('USER ' + settings.NICK + ' muh python bot\r\n')
+        self.send('NICK ' + settings.NICK + '\r\n')
+        self.send('USER ' + settings.NICK + ' muh python bot\r\n')
         if settings.nick_serv_on:
-            self.irc.send(
+            self.send(
                 'PRIVMSG ' + "NickServ" + ' :IDENTIFY %s %s\r\n' % (settings.nick_serv_nick, settings.nick_serv_pass))
             logging.info('Waiting for login...')
             time.sleep(
@@ -60,7 +66,7 @@ class botframe():
         # Join all channels
         logging.info('Joining channels')
         for channel in settings.channel_list:
-            self.irc.send('JOIN ' + channel + '\r\n')
+            self.send('JOIN ' + channel + '\r\n')
 
     def parse_command(self, data):
 
@@ -76,7 +82,7 @@ class botframe():
 
         if cmd == 'PING':
             try:
-                self.irc.send('PONG ' + params + '\r\n')
+                self.send('PONG ' + params + '\r\n')
             except:
                 self.irc.close()
                 logging.warning("Error with sockets: ", sys.exc_info()[0])
@@ -122,7 +128,7 @@ class botframe():
     def send_from_buffer(self):
         command = self.msg_buffer.popleft()
         try:
-            self.irc.send(command)
+            self.send(command)
         except:
             self.irc.close()
             logging.warning("Error with sockets: ", sys.exc_info()[0])
@@ -154,7 +160,7 @@ class botframe():
             return self.commands.popleft()
 
         # Read data from the socket
-        data = self.irc.recv(4096)
+        data = self.irc.recv(4096).decode('utf-8')
 
         # If the data is empty, the connection must be broken, we should reconnect
         if not len(data):
