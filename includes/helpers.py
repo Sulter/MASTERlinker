@@ -6,7 +6,7 @@ def time_string(tdel):
         return "{}w ago".format(tdel.days//7)
     elif tdel.days > 1:
         return "{}d ago".format(tdel.days)
-    elif tdel.seconds > 7200:
+    elif tdel.days == 1 or tdel.seconds > 7200:
         return "{}h ago".format((tdel.days*24)+(tdel.seconds//3600))
     elif tdel.seconds > 120:
         return "{}m ago".format(tdel.seconds//60)
