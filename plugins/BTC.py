@@ -70,10 +70,10 @@ class BTC():
 
         if change > 0:
             arrow = "↑"
-            color = "\x033,1"
+            color = "\x033"
         else:
             arrow = "↓" 
-            color = "\x034,1"
+            color = "\x034"
 
         change = color + char + ":" + arrow + str(round(change, 2)) + "%"
 
