@@ -1,4 +1,5 @@
 import settings
+import datetime
 import logging
 import json
 import urllib
@@ -21,25 +22,61 @@ class BTC():
                 main_ref.send_msg(msg_info["channel"], price_str)
 
     def get_price(self):
-        api = "https://api.coindesk.com/v1/bpi/currentprice.json"
+        current_api = "https://api.coindesk.com/v1/bpi/currentprice.json"
+        lastM_api = "https://api.coindesk.com/v1/bpi/historical/close.json"
         try:
-            r = urllib.request.urlopen(api).read()
+            current_r = urllib.request.urlopen(current_api).read()
+            lastM_r = urllib.request.urlopen(lastM_api).read()
         except urllib.error.HTTPError:
-            logging.debug("couldn't make the request")
+            logging.debug("BTC: couldn't make the request")
+            return ""
         try:
-            cont = json.loads(r.decode('utf-8'))
+            current_j = json.loads(current_r.decode('utf-8'))
+            lastM_j = json.loads(lastM_r.decode('utf-8'))
         except:
-            logging.debug("couldn't decode the request")
-            
+            logging.debug("BTC: couldn't decode the request")
+            return ""
+
+        today = datetime.date.today()
+        d_ago = today - datetime.timedelta(days=1)
+        week_ago = today - datetime.timedelta(days=7)
+        month_ago = today - datetime.timedelta(days=30)
 
         try:
-            usd_price = cont["bpi"]["USD"]["rate"].split(".", 1)[0]
-            eur_price = cont["bpi"]["EUR"]["rate"].split(".", 1)[0]
+            usd_price_1d = lastM_j["bpi"][d_ago.isoformat()]
+            usd_price_1w = lastM_j["bpi"][week_ago.isoformat()]
+            usd_price_1m = lastM_j["bpi"][month_ago.isoformat()]
         except:
-            logging.debug("the api probably changed")
+            logging.debug("BTC: api changed or date/time error")
+            return ""
 
-        response_str = "$" + usd_price + "/" + eur_price + "€"
+        try:
+            usd_price = current_j["bpi"]["USD"]["rate"]
+            eur_price = current_j["bpi"]["EUR"]["rate"]
+        except:
+            logging.debug("BTC: the api probably changed")
+            return ""
+
+        d_change = (1 - (float(usd_price.replace(",","")) / float(usd_price_1d))) * -100
+        week_change = (1 - (float(usd_price.replace(",","")) / float(usd_price_1w))) * -100
+        month_change = (1 - (float(usd_price.replace(",","")) / float(usd_price_1m))) * -100
+
+        response_str = "฿: $" + usd_price.split(".", 1)[0] + "/€" + eur_price.split(".", 1)[0] +  " " + \
+            self.format_change(d_change, "d") + " " + self.format_change(week_change, "w") + " " + self.format_change(month_change, "m")
 
         return response_str
+
+    def format_change(self, change, char):
+
+        if change > 0:
+            arrow = "↑"
+            color = "\x033,1"
+        else:
+            arrow = "↓" 
+            color = "\x034,1"
+
+        change = color + char + ":" + arrow + str(round(change, 2)) + "%"
+
+        return change
 
 #(((“Powered by CoinDesk”)))
