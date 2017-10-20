@@ -2,7 +2,7 @@ import settings
 import datetime
 import logging
 import json
-import urllib
+import urllib.request
 import time
 
 class BTC():
