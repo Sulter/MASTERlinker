@@ -2,7 +2,7 @@ import settings
 import datetime
 import logging
 import json
-import urllib
+import urllib.request
 import time
 
 class BTC():
@@ -43,6 +43,8 @@ class BTC():
         month_ago = today - datetime.timedelta(days=30)
 
         try:
+            if d_ago.isoformat() not in lastM_j["bpi"]: #depending on timezone, day might not have changed yet!
+                d_ago = d_ago - datetime.timedelta(days=1)
             usd_price_1d = lastM_j["bpi"][d_ago.isoformat()]
             usd_price_1w = lastM_j["bpi"][week_ago.isoformat()]
             usd_price_1m = lastM_j["bpi"][month_ago.isoformat()]
