@@ -1,4 +1,5 @@
 # Plugin that searches for url links in each message, and sends a message with info about each link.
+import includes.helpers as helpers
 import re
 import urllib
 from http.cookiejar import CookieJar
@@ -11,46 +12,44 @@ import sqlite3
 import time
 import datetime
 
-from includes.helpers import time_string
 
-TLDs = [
-  "com",
-  "biz",
-  "edu",
-  "gov",
-  "int",
-  "mil",
-  "moe",
-  "net",
-  "org",
-  "xxx",
-  "aero",
-  "asia",
-  "coop",
-  "info",
-  "jobs",
-  "name",
-  "musem",
-  "travel",
-]
-url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)", re.IGNORECASE)
-url_prefix = re.compile("(https?://www\.)|(https?://|www\.)", re.IGNORECASE)
+class url_info_finder(helpers.Plugin):
+  TLDs = [
+    "com",
+    "biz",
+    "edu",
+    "gov",
+    "int",
+    "mil",
+    "moe",
+    "net",
+    "org",
+    "xxx",
+    "aero",
+    "asia",
+    "coop",
+    "info",
+    "jobs",
+    "name",
+    "musem",
+    "travel",
+  ]
+  url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)", re.IGNORECASE)
+  url_prefix = re.compile("(https?://www\.)|(https?://|www\.)", re.IGNORECASE)
 
-
-class url_info_finder():
-  def url_info_finder(self, main_ref, msg_info):
+  def handle_pm(self, msg_data):
     # Ignore private messages, to prevent from flooding/api usage etc.
-    if msg_info["channel"] == main_ref.config['connection']['nick']:
-      return None
+    pass
 
+  def handle_message(self, msg_data):
     # For each message we start a new thread, because this can be pretty slow (sometimes very slow with dns lookups etc.)
-    thread = threading.Thread(target=self.start_thread, args=(main_ref, msg_info))
+    thread = threading.Thread(target=self.start_thread, args=(msg_data,))
     thread.start()
 
-  def start_thread(self, main_ref, msg_info):
+  def start_thread(self, msg_data):
     # Find all url links in the message, and send info about them, in one formatted string
     info_string = ""
-    url_info_list = self.parse_msg(msg_info["message"], msg_info["nick"])
+    url_info_list = self.parse_msg(msg_data["message"], msg_data["nick"])
     for i, url_info in enumerate(url_info_list):
       info_string = info_string + url_info
       if i != len(url_info_list) - 1:
@@ -61,7 +60,7 @@ class url_info_finder():
       if len(info_string) > 440:
         info_string[0:440]
         info_string = info_string + "(...)]"
-      main_ref.send_msg(msg_info["channel"], info_string)
+      self.parent.send_msg(msg_data["channel"], info_string)
 
   def search_add_database(self, url, nick):
     """
@@ -70,7 +69,7 @@ class url_info_finder():
     """
 
     # We replace the usual prefix, and lowercase the hostname part
-    url = url_prefix.sub("", url, 1)
+    url = self.url_prefix.sub("", url, 1)
     hostname, *tail = url.split("/", 1) + [""]  # Guarantees that tail will contain a non-empty list
     url = "{}/{}".format(hostname.lower(), tail[0])
 
@@ -94,8 +93,8 @@ class url_info_finder():
       c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, t))
       conn.commit()
 
-      time_str_1 = time_string(datetime.timedelta(seconds=t-t1))
-      time_str_2 = time_string(datetime.timedelta(seconds=t-t2))
+      time_str_1 = helpers.time_string(datetime.timedelta(seconds=t-t1))
+      time_str_2 = helpers.time_string(datetime.timedelta(seconds=t-t2))
       if total == 1:
         return " |1: {} {}".format(first_nick, time_str_1)
       elif first_nick == last_nick:
@@ -242,7 +241,7 @@ class url_info_finder():
     elif "&v=" in yt_id:
       yt_id = yt_id.partition("&v=")[2]
 
-    yt_api_key = main_ref.config['api_keys']['youtube']
+    yt_api_key = self.parent.config['api_keys']['youtube']
     yt_string_start = "https://www.googleapis.com/youtube/v3/videos?id="
     yt_string_end = "&part=snippet,statistics,contentDetails"
     api_url = yt_string_start + yt_id + "&key=" + yt_api_key + yt_string_end
@@ -295,7 +294,7 @@ class url_info_finder():
 
   def find_urls(self, text):
     url_array = []
-    for url in re.findall(url_regex, text):
+    for url in re.findall(self.url_regex, text):
       if url[0]:
         url_array.append(url[0])  # if starts with http https or www
       elif url[2]:
@@ -303,7 +302,7 @@ class url_info_finder():
     return url_array
 
   def parse_msg(self, msg, nick):
-    url_info = []
+    url_info_list = []
     # First we search it for links, if any found, send message with info about them, if any
     for url in self.find_urls(msg):
       info, rdr_url = self.get_url_info(url)
@@ -331,5 +330,5 @@ class url_info_finder():
           info += "(...)]"
 
         info_message = '%s%s' % (color, info)
-        url_info.append(info_message)
-    return url_info
+        url_info_list.append(info_message)
+    return url_info_list

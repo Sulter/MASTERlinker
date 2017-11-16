@@ -1,4 +1,5 @@
 # Plugin that creates a websocket server, and feeds all the messages written to the connected clients
+import includes.helpers as helpers
 import socket
 import re
 import base64
@@ -9,16 +10,17 @@ import select
 import logging
 
 
-class wsserver():
-  def __init__(self):
+class wsserver(helpers.Plugin):
+  def __init__(self, parent):
+    super().__init__(parent)
     self.server = WsServerThread(4446)
     self.server.start()
 
-  def wsserver(self, main_ref, msg_info):  # main function ran by the bot after receiving each message
-    if msg_info["channel"] == main_ref.config['connection']['nick']:  # ignore private msg
-      return None
+  def handle_pm(self, msg_data):
+    pass
 
-    self.server.send_msg_all(msg_info["nick"] + ":" + msg_info["message"])  # send msg and nick to listening sockets
+  def handle_message(self, msg_data):
+    self.server.send_msg_all(msg_data["nick"] + ":" + msg_data["message"])  # send msg and nick to listening sockets
 
 class WsServerThread(threading.Thread):
   def __init__(self, port):

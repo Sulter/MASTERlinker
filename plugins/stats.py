@@ -1,28 +1,31 @@
 # A plugin that tracks number of lines and words written by users
+import includes.helpers as helpers
 import sqlite3
 import time
 import re
 import random
 
 
-class stats():
-  def stats(self, main_ref, msg_info):
-    # Ignore private messages
-    if msg_info["channel"] == main_ref.config['connection']['nick']:
-      return None
-    # Ignore if message does not contain module name
-    if msg_info["message"].startswith("!stats"):
-      self.print_user_stats(main_ref, msg_info)
-    else:
-      self.add_line_n_words(msg_info["nick"], msg_info["message"])
-
-  def __init__(self):
+class stats(helpers.Plugin):
+  def __init__(self, parent):
+    super().__init__(parent)
     db_path = "database/stats.db"
     self.connection = sqlite3.connect(db_path)
     self.cursor = self.connection.cursor()
     self.cursor.execute(
       'CREATE TABLE IF NOT EXISTS nickstats (Id INTEGER PRIMARY KEY, nickname TEXT UNIQUE, lines INT DEFAULT(0), words INT DEFAULT(0), init_time INT, random_quote TEXT)')
     self.connection.commit()
+
+  def handle_pm(self, msg_data):
+    # Ignore private messages
+    pass
+
+  def handle_message(self, msg_data):
+    # Ignore if message does not contain module name
+    if msg_data["message"].startswith("!stats"):
+      self.print_user_stats(msg_data)
+    else:
+      self.add_line_n_words(msg_data["nick"], msg_data["message"])
 
   def add_line_n_words(self, nick, msg):
     self.cursor.execute("INSERT OR IGNORE INTO nickstats(nickname, init_time) VALUES(?,?)",
@@ -40,9 +43,9 @@ class stats():
       except:
         return None
 
-  def print_user_stats(self, main_ref, msg_info):
+  def print_user_stats(self, msg_data):
     try:
-      self.cursor.execute("SELECT words, lines FROM nickstats WHERE nickname=?", (msg_info["nick"],))
+      self.cursor.execute("SELECT words, lines FROM nickstats WHERE nickname=?", (msg_data["nick"],))
     except:
       return None
     row = self.cursor.fetchone()
@@ -53,5 +56,5 @@ class stats():
       words = row[0]
       lines = row[1]
 
-    response = "Counting " + str(words) + " words in " + str(lines) + " lines"
-    main_ref.send_msg(msg_info["channel"], response)
+    response = "Counting {} words in {} lines".format(words, lines)
+    self.parent.send_msg(msg_data["channel"], response)

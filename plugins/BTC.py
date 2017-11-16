@@ -1,14 +1,15 @@
 # A plugin for allowing people who are not daytraders to spam the channel with bitcoin prices.
+import includes.helpers as helpers
 import datetime
 import logging
 import json
 import urllib.request
 import time
-import includes.helpers as helpers
 
 
-class BTC():
-  def __init__(self):
+class BTC(helpers.Plugin):
+  def __init__(self, parent):
+    super().__init__(parent)
     default_config = {
       'cooldown': 60*10,  # cooldown time for requests in sec
       'cooldown_brown': 60*30,  # cooldown for people who need to get a life
@@ -17,31 +18,31 @@ class BTC():
       'blacklist': [],
       'brownlist': [],
     }
-    self.config = helpers.parse_config('btc_settings.json', default_config)
+    self.config = helpers.parse_config('settings_btc.json', default_config)
     self.last_request = 0
     self.last_black_request = 0
 
-  def BTC(self, main_ref, msg_info):
-    if msg_info['channel'] == main_ref.config['connection']['nick']:
-      return None
+  def handle_pm(self, msg_data):
+    pass
 
-    if msg_info['message'].lower().startswith("!btc"):
+  def handle_message(self, msg_data):
+    if msg_data['message'].lower().startswith("!btc"):
       current_time = time.time()
       currency = 'USD'
-      if msg_info['nick'] in self.config['whitelist']:
+      if msg_data['nick'] in self.config['whitelist']:
         cooldown = 0
-      elif msg_info['nick'] in self.config['blacklist']:
+      elif msg_data['nick'] in self.config['blacklist']:
         if current_time > self.last_black_request + self.config['cooldown_black']:
           self.last_black_request = current_time
-          main_ref.send_msg(msg_info['channel'], "{}, you are not a day trader. Go back to your real job.".format(msg_info['nick']))
-      elif msg_info['nick'] in self.config['brownlist']:
+          self.parent.send_msg(msg_data['channel'], "{}, you are not a day trader. Go back to your real job.".format(msg_data['nick']))
+      elif msg_data['nick'] in self.config['brownlist']:
         cooldown = self.config['cooldown_brown']
       else:
         cooldown = self.config['cooldown']
       if current_time > self.last_request + cooldown:
         self.last_request = current_time
         price_str = self.get_price(currency)
-        main_ref.send_msg(msg_info['channel'], price_str)
+        self.parent.send_msg(msg_data['channel'], price_str)
 
   def get_price(self, currency="USD"):
     current_api = "https://api.coindesk.com/v1/bpi/currentprice.json"

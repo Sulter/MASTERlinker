@@ -29,18 +29,27 @@ class botframe():
     for plugin in self.config['plugins']:
       self.import_plugin(plugin)
 
-  def reload_plugins(self):
+  def reload_plugins(self, plugin_list=None):
     logging.info('Attempting to reload all plugins')
     importlib.invalidate_caches()
-    for plugin in self.loaded_plugins.keys():
-      try:
-        module_ref = self.loaded_plugins[plugin][1]
-        module_ref = importlib.reload(module_ref)
-        inst_ref = getattr(module_ref, plugin)()
-        self.loaded_plugins[plugin] = (inst_ref, module_ref)
-        logging.info('Reloaded plugin {}.'.format(plugin))
-      except BaseException as e:
-        logging.error('Unable to reload plugin {}: {}'.format(plugin, e))
+    if plugin_list:
+      for plugin in plugin_list:
+        self.reload_plugin(plugin, True)
+    else:
+      for plugin in self.loaded_plugins.keys():
+        self.reload_plugin(plugin, True)
+
+  def reload_plugin(self, plugin, skip_invalidate=False):
+    if not skip_invalidate:
+      importlib.invalidate_caches()
+    try:
+      module_ref = self.loaded_plugins[plugin][1]
+      module_ref = importlib.reload(module_ref)
+      inst_ref = getattr(module_ref, plugin)(self)
+      self.loaded_plugins[plugin] = (inst_ref, module_ref)
+      logging.info('Reloaded plugin {}.'.format(plugin))
+    except BaseException as e:
+      logging.error('Unable to reload plugin {}: {}'.format(plugin, e))
 
   def unload_plugin(self, plugin):
     if plugin in self.loaded_plugins:
@@ -55,7 +64,7 @@ class botframe():
   def import_plugin(self, plugin):
     try:
       module_ref = importlib.import_module('plugins.{}'.format(plugin))
-      inst_ref = getattr(module_ref, plugin)()
+      inst_ref = getattr(module_ref, plugin)(self)
       self.loaded_plugins[plugin] = (inst_ref, module_ref)
       logging.info('Loaded plugin {}.'.format(plugin))
     except BaseException as e:
@@ -87,59 +96,66 @@ class botframe():
       logging.info('Joining channels')
       for channel in conf['channel_list']:
         self.send('JOIN ' + channel)
-    except socket.error as err:
-      if err.errno != 110:  # 110 is time-out error code
-        raise err
-      else:
-        logging.warning(format(err.errno, err.strerror))
-        logging.info('Trying to reconnect')
-        self.connect()
+    except socket.timeout as e:
+      logging.warning(format(e.errno, e.strerror))
+      logging.info('Trying to reconnect')
+      self.connect()
 
   def parse_command(self, data):
     rex = re.search(self.rexp_general, data)
     if rex is None:
       return
-
     command = rex.groups()
-    sender = command[0]
-    cmd = command[1]
-    params = command[2]
+    sender, cmd, params, *overflow = command
     logging.debug(command)
+    handlers = {
+      'PING': self.handle_ping,
+      'PRIVMSG': self.handle_privmsg,
+    }
+    if cmd in handlers:
+      handlers[cmd](sender, params)
 
-    if cmd == 'PING':
-      try:
+  def handle_ping(self, sender, params):
+    try:
         self.send('PONG ' + params)
-      except:
+    except:
         self.irc.close()
         logging.warning("Error with sockets: ", sys.exc_info()[0])
         logging.info('Trying to reconnect')
         self.connect()
+
+  def handle_privmsg(self, sender, params):
+    # Get the nick, channel (doesn't have to be channel) and message.
+    nick = sender.lstrip(":").partition("!")[0]
+    # Don't do anything if nick is on ignore list
+    if nick in self.config['connection']['ignore_list']:
       return
-    elif cmd == 'PRIVMSG':
-      # Get the nick, channel (doesn't have to be channel) and message.
-      nick = self.get_nick(sender)
-      channel = self.get_channel(params, nick)
-      msg = self.get_msg(params, channel)
-      if self.config['connection']['identifymsg_enabled']:
-        ident = (msg[0] == '+')
-        msg = msg[1:]
-        msg_info = {'message': msg, 'nick': nick, 'channel': channel, 'ident': ident}
-        # Reload plugins
-        if ident and nick in self.config['connection']['admin_list']:
-          if msg == "!reload":
-            self.reload_plugins()
-      else:
-        msg_info = {'message': msg, 'nick': nick, 'channel': channel}
+    channel = re.search(r"^[\S]+", params).group()
+    msg = self.get_msg(params, channel)
+    if self.config['connection']['identifymsg_enabled']:
+      ident = (msg[0] == '+')
+      msg = msg[1:]
+      msg_data = {'message': msg, 'nick': nick, 'channel': channel, 'ident': ident}
+      # Admin commands which don't belong in plugins
+      if ident and nick in self.config['connection']['admin_list']:
+        if msg == '!reload':
+          self.reload_plugins()
+        elif msg.startswith('!reload '):
+          plugin_list = msg[8:].split(', ')
+          self.reload_plugins(plugin_list)
+    else:
+      msg_data = {'message': msg, 'nick': nick, 'channel': channel}
 
-
-      # Don't do anything if nick is on ignore list
-      if nick in self.config['connection']['ignore_list']:
-        return
-
-      # Call all the modules
-      for plugin_name, (instance, module) in self.loaded_plugins.items():
-        getattr(instance, plugin_name)(self, msg_info)
-      return
+    # Call all the modules
+    if msg_data['channel'] == self.config['connection']['nick']:
+      handler = 'handle_pm'
+    else:
+      handler = 'handle_message'
+    for plugin_name, (instance, module) in self.loaded_plugins.items():
+      try:
+        getattr(instance, handler)(msg_data)
+      except BaseException as e:
+        logging.error('Error in {} for plugin {}: {}'.format(handler, plugin_name, e))
 
   def send_msg(self, recipient, msg):  # method for sending privmsg, takes care of timing etc. to prevent flooding
     command = 'PRIVMSG {} :{}'.format(recipient, msg)
@@ -169,10 +185,6 @@ class botframe():
       self.connect()
     self.msg_send_time = time.time()
 
-  def get_channel(self, string, nick):
-    channel = re.search(r"^[\S]+", string).group()
-    return channel
-
   def get_msg(self, string, current_channel):
     # Remove channel name, and the : that is the prefix of the message
     parsed_msg = string.lstrip(current_channel)
@@ -181,11 +193,6 @@ class botframe():
     # Sanitize from formatting (color codes etc.) - thank you Kuraitou
     parsed_msg = re.sub('(\x02)|(\x07)|(\x0F)|(\x16)|(\x1F)|(\x03(\d{1,2}(,\d{1,2})?)?)', '', parsed_msg)
     return parsed_msg
-
-  def get_nick(self, string):
-    nick = string.lstrip(":")
-    nick = nick.partition("!")
-    return nick[0]
 
   def receive_com(self):
     # Parse commands from our command-buffer if *not* empty

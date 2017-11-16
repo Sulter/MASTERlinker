@@ -1,29 +1,27 @@
 # A plugin that gives when the bot last saw the user
+import includes.helpers as helpers
 import sqlite3
 import time
 import datetime
-from includes.helpers import time_string
 
 
-class seen():
-  def seen(self, main_ref, msg_info):
-    # Ignore private messages
-    if msg_info["channel"] == main_ref.config['connection']['nick']:
-      return None
-    # We update the seen time of this nick
-    self.update(msg_info["nick"])
-    # Ignore if message does not contain module name
-    if not msg_info["message"].startswith("!seen"):
-      return None
-    self.handle_seen(main_ref, msg_info)
-
-  def __init__(self):
+class seen(helpers.Plugin):
+  def __init__(self, parent):
+    super().__init__(parent)
     db_path = "database/seen.db"
     self.connection = sqlite3.connect(db_path)
     self.cursor = self.connection.cursor()
     self.cursor.execute('CREATE TABLE IF NOT EXISTS seen '
               '(Id INTEGER PRIMARY KEY, nickname TEXT UNIQUE, last_time INT)')
     self.connection.commit()
+
+  def handle_message(self, msg_data):
+    # We update the seen time of this nick
+    self.update(msg_data["nick"])
+    # Ignore if message does not contain module name
+    if not msg_data["message"].startswith("!seen"):
+      return None
+    self.handle_seen(msg_data)
 
   def update(self, nick):
     nick = nick.lower()
@@ -32,9 +30,9 @@ class seen():
     self.cursor.execute("UPDATE seen SET last_time=? WHERE nickname=?", (t, nick))
     self.connection.commit()
 
-  def handle_seen(self, main_ref, msg_info):
+  def handle_seen(self, msg_data):
     # Get the nick and strip its spaces.
-    nick = msg_info["message"].replace("!seen", "")
+    nick = msg_data["message"].replace("!seen", "")
     nick = nick.replace(" ", "")
     nick = nick.lower()
 
@@ -49,7 +47,7 @@ class seen():
       t = row[0]
       time_now = int(time.time())
       diff = time_now - t
-      time_str = time_string(datetime.timedelta(seconds=diff))
+      time_str = helpers.time_string(datetime.timedelta(seconds=diff))
       response = "I saw {} {}".format(nick, time_str)
 
-    main_ref.send_msg(msg_info["channel"], response)
+    self.parent.send_msg(msg_data["channel"], response)

@@ -5,6 +5,20 @@ import logging
 import os
 
 
+class Plugin:
+  def __init__(self, parent):
+    self.parent = parent
+
+  def handle_message(self, msg_data):
+    pass
+
+  def handle_pm(self, msg_data):
+    """
+    By default, treat private messages the same as channel messages.
+    """
+    self.handle_message(msg_data)
+
+
 def parse_config(filename, default):
   config = copy.copy(default)
   try:

@@ -1,22 +1,23 @@
 # Plugin that uses the wolfram alpha api to solve equations etc.
+import includes.helpers as helpers
 import xml.etree.ElementTree as xml
 import urllib.request, urllib.error, urllib.parse
 import logging
 import threading
 
 
-class wolfram():
-  def wolfram(self, main_ref, msg_info):
+class wolfram(helpers.Plugin):
+  def handle_pm(self, msg_data):
     # Ignore private messages, to prevent from flooding/api usage etc.
-    if msg_info["channel"] == main_ref.config['connection']['nick']:
-      return None
+    pass
 
-    if msg_info["message"].startswith("!WA "):
-      t = threading.Thread(target=self.wolfram_thread, args=(main_ref, msg_info))
+  def handle_message(self, msg_data):
+    if msg_data["message"].startswith("!WA "):
+      t = threading.Thread(target=self.wolfram_thread, args=(main_ref, msg_data))
       t.start()
 
-  def wolfram_thread(self, main_ref, msg_info):
-    phrase = msg_info["message"].replace("!WA ","", 1).replace(" ", "%20").replace("&", "").replace("/", "%2F")
+  def wolfram_thread(self, msg_data):
+    phrase = msg_data["message"].replace("!WA ","", 1).replace(" ", "%20").replace("&", "").replace("/", "%2F")
     if phrase:
       url = "http://api.wolframalpha.com/v2/query?input=" + phrase + "&appid=" + settings.wa_api_key
       try:
@@ -25,7 +26,7 @@ class wolfram():
         logging.debug("wolfram alpha error could not open: %s", url)
         return
 
-      logging.debug("wolfram alpha, opened: %s send by the user:%s", url, msg_info["nick"])
+      logging.debug("wolfram alpha, opened: %s send by the user:%s", url, msg_data["nick"])
 
       try:
         xml_response = xml.fromstring(string)
@@ -47,5 +48,4 @@ class wolfram():
                   response = response.replace(i, " ")
                 response = response[0:300]
                 response = "\x033[WOLFRAM ALPHA | " + response + "]"
-                main_ref.send_msg(msg_info["channel"], response)
-                return
+                self.parent.send_msg(msg_data["channel"], response)
