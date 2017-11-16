@@ -9,6 +9,7 @@ import time
 import ssl
 import sys
 import importlib
+import unicodedata
 import includes.helpers as helpers
 
 
@@ -191,8 +192,29 @@ class botframe():
     parsed_msg = parsed_msg.lstrip()
     parsed_msg = parsed_msg.lstrip(":")
     # Sanitize from formatting (color codes etc.) - thank you Kuraitou
-    parsed_msg = re.sub('(\x02)|(\x07)|(\x0F)|(\x16)|(\x1F)|(\x03(\d{1,2}(,\d{1,2})?)?)', '', parsed_msg)
-    return parsed_msg
+    #parsed_msg = re.sub('(\x02)|(\x07)|(\x0F)|(\x16)|(\x1F)|(\x03(\d{1,2}(,\d{1,2})?)?)', '', parsed_msg)
+    # Following unicode categories are unwanted:
+    #  Cc = Other, control
+    #  Cf = Other, format
+    #  Cs = Other, surrogate
+    #  Co = Other, private use
+    #  Cn = Other, not assigned (including noncharacters)
+    # Following should be replaced with standard spaces
+    #  Zs = Separator, space
+    #  Zl = Separator, line
+    #  Zp = Separator, paragraph
+    parsed_msg = re.sub('(\x03(\d{1,2}(,\d{1,2})?)?)', '', parsed_msg)  # Keep this for stripping colour
+    msg_list = []
+    for c in parsed_msg:
+      category = unicodedata.category(c)[0]  # First letter is enough to judge
+      if category == 'C':
+        continue  # Filthy nonprintable!
+      elif category == 'Z':
+        msg_list.append(' ')
+      else:
+        msg_list.append(c)
+    msg = ''.join(msg_list)
+    return msg
 
   def receive_com(self):
     # Parse commands from our command-buffer if *not* empty

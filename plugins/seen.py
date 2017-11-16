@@ -3,11 +3,16 @@ import includes.helpers as helpers
 import sqlite3
 import time
 import datetime
+import logging
 
 
 class seen(helpers.Plugin):
   def __init__(self, parent):
     super().__init__(parent)
+    default_config = {
+      'name_replacements': {}
+    }
+    self.config = helpers.parse_config('settings_seen.json', default_config)
     db_path = "database/seen.db"
     self.connection = sqlite3.connect(db_path)
     self.cursor = self.connection.cursor()
@@ -34,20 +39,29 @@ class seen(helpers.Plugin):
     # Get the nick and strip its spaces.
     nick = msg_data["message"].replace("!seen", "")
     nick = nick.replace(" ", "")
-    nick = nick.lower()
+    matching_nick = nick.lower()
+    if matching_nick in self.config['name_replacements']:
+      nick = self.config['name_replacements'][nick]
+      matching_nick = nick.lower()
 
-    try:
-      self.cursor.execute("SELECT last_time FROM seen WHERE nickname=?", (nick,))
-    except:
-      return None
-    row = self.cursor.fetchone()
-    if not row:
-      response = "I haven't seen " + nick + "."
+    if matching_nick == msg_data['nick'].lower():
+      response = "I see you, {}.".format(nick)
+    elif matching_nick == self.parent.config['connection']['nick'][:16].lower():
+      response = "I see me in every way there is to be seen, perceiving all that is within {}.".format(nick)
     else:
-      t = row[0]
-      time_now = int(time.time())
-      diff = time_now - t
-      time_str = helpers.time_string(datetime.timedelta(seconds=diff))
-      response = "I saw {} {}".format(nick, time_str)
+      try:
+        self.cursor.execute("SELECT last_time FROM seen WHERE nickname=?", (matching_nick,))
+      except BaseException as e:
+        logging.error('Error in Seen: {}'.format(e))
+        return None
+      row = self.cursor.fetchone()
+      if not row:
+        response = "I haven't seen {}.".format(nick)
+      else:
+        t = row[0]
+        time_now = int(time.time())
+        diff = time_now - t
+        time_str = helpers.time_string(datetime.timedelta(seconds=diff))
+        response = "I saw {} {}".format(nick, time_str)
 
     self.parent.send_msg(msg_data["channel"], response)
