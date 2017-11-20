@@ -136,7 +136,10 @@ def shorten_number(number, max_width, engineering=False, include_letter=True, in
   if engineering:
     output = num[:dec_point] + SI_large_prefixes[unit] + num[dec_point:max_width]
   else:
-    output = num[:dec_point] +  '.' + num[dec_point:max_width] + SI_large_prefixes[unit]
+    if dec_point < max_width:
+      output = num[:dec_point] +  '.' + num[dec_point:max_width] + SI_large_prefixes[unit]
+    else:
+      output = num[:dec_point] + SI_large_prefixes[unit]
 
   if neg:
     output = '-' + output
