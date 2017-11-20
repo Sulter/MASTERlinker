@@ -37,6 +37,15 @@ class url_info_finder(helpers.Plugin):
   url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)", re.IGNORECASE)
   url_prefix = re.compile("(https?://www\.)|(https?://|www\.)", re.IGNORECASE)
 
+  def __init__(self, parent):
+    super().__init__(parent)
+    default_config = {
+      'api_keys': {
+      'youtube': "Youtube Data API key",
+      },
+    }
+    self.config = helpers.parse_config('settings_url_info_finder.json', default_config)
+
   def handle_pm(self, msg_data):
     # Ignore private messages, to prevent from flooding/api usage etc.
     pass
@@ -47,26 +56,29 @@ class url_info_finder(helpers.Plugin):
     thread.start()
 
   def start_thread(self, msg_data):
+    # The color code for the message (green), the 0x02 is just a hack
+    color = "\x033"
+    # If NSFW found in msg, mark it red
+    if re.search(r'(nsfw|NSFW)', msg_data["message"]) is not None:
+      color = "\x030,4"
+    # If NSFL found in msg, mark it other color
+    if re.search(r'(nsfl|NSFL)', msg_data["message"]) is not None:
+      color = "\x030,6"
     # Find all url links in the message, and send info about them, in one formatted string
-    info_string = ""
     url_info_list = self.parse_msg(msg_data["message"], msg_data["nick"])
-    for i, url_info in enumerate(url_info_list):
-      info_string = info_string + url_info
-      if i != len(url_info_list) - 1:
-        info_string = info_string + "\x0F  ...  "
+    info_string = ' '.join(url_info_list)
 
     if info_string:
       # Add a nice ending, if the message is too long
       if len(info_string) > 440:
-        info_string[0:440]
-        info_string = info_string + "(...)]"
-      self.parent.send_msg(msg_data["channel"], info_string)
+        info_string = info_string[0:440] + "(...)]"
+      self.parent.send_msg(msg_data["channel"], '{}{}'.format(color, info_string))
 
   def search_add_database(self, url, nick):
-    """
+    '''
     For each url, we add it to the database with time, and increase the counter
     Returns number of times linked, first and last nick to link it
-    """
+    '''
 
     # We replace the usual prefix, and lowercase the hostname part
     url = self.url_prefix.sub("", url, 1)
@@ -87,21 +99,21 @@ class url_info_finder(helpers.Plugin):
     t = int(time.time())
 
     if entry:
-      key, total, url2, first_nick, t1, last_nick, t2, *tmp = entry
+      keylist = ['key', 'total', 'url', 'nick_first', 't1', 'nick_last', 't2']
+      data = dict(zip(keylist, entry))
+      data['time_first'] = helpers.time_string(datetime.timedelta(seconds=t-data['t1']))
+      data['time_last'] = helpers.time_string(datetime.timedelta(seconds=t-data['t2']))
       # Increase counter and add entry
-      c.execute("UPDATE URL SET total=?, last_nick=?, last_time=? WHERE url=?", (total + 1, nick, t, url))
+      c.execute("UPDATE URL SET total=?, last_nick=?, last_time=? WHERE url=?", (data['total'] + 1, nick, t, url))
       c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, t))
       conn.commit()
 
-      time_str_1 = helpers.time_string(datetime.timedelta(seconds=t-t1))
-      time_str_2 = helpers.time_string(datetime.timedelta(seconds=t-t2))
-      if total == 1:
-        return " |1: {} {}".format(first_nick, time_str_1)
-      elif first_nick == last_nick:
-        return " |1: {} {}, {}: {}".format(first_nick, time_str_1, str(total), time_str_2)
+      if data['total'] == 1:
+        return " |1: {nick_first} {time_first}".format(**data)
+      elif data['nick_first'] == data['nick_last']:
+        return " |1: {nick_first} {time_first}, {total}: {time_last}".format(**data)
       else:
-        return " |1: {} {}, {}: {} {}".format(first_nick, time_str_1, str(total), last_nick, time_str_2)
-
+        return " |1: {nick_first} {time_first}, {total}: {nick_last} {time_last}".format(**data)
     else:
       # Add to both tables
       c.execute("INSERT INTO URL(total, url, first_nick, first_time, last_nick, last_time) VALUES(?,?,?,?,?,?)", (1, url, nick, t, nick, t))
@@ -118,7 +130,6 @@ class url_info_finder(helpers.Plugin):
     return "{:.0f}".format(n) + tiers[i]
 
   def get_url_info(self, url, ignore_redirects=False):
-
     if "https://" not in url and "http://" not in url:
       url = "http://" + url
 
@@ -203,7 +214,9 @@ class url_info_finder(helpers.Plugin):
 
   def github_info(self, url):
     result = re.search("(\.com)(/[^ /]+/[^ /]+$)", url)
-    if result is not None:
+    if result is None:
+      return
+    else:
       result = result.group(2)
       api_url = "https://api.github.com/repos" + result
       logging.debug("api url:%s", api_url)
@@ -211,25 +224,38 @@ class url_info_finder(helpers.Plugin):
         result = json.load(urllib.request.urlopen(api_url))
       except:
         logging.debug("url_finder error: github error, either urllib or json fail")
-        return None
+        return
 
       # Make sure it's a dictionary, otherwise we might not be looking at a repo at all!
       if not isinstance(result, dict):
-        return None
+        return
 
-      return_string = "|GITHUB| "
+      return_string = "GitHub| "
       if "name" in result and result["name"]:
         return_string = return_string + result["name"]
       if "description" in result and result["description"]:
         return_string = return_string + " - " + result["description"]
       if "language" in result and result["language"]:
         return_string = return_string + " | >" + result["language"]
-
       return return_string
-    else:
-      return None
 
   def yt_info(self, url):
+    '''
+    Uses youtube v3 API to get video info.
+    JSON Structure of note:
+
+    items:
+      0:
+        snippet:
+          publishedAt (of form "2017-11-19T01:01:50.000Z")
+          channelId, channelTitle, title, description, categoryId
+          localized:
+            title, description
+        contentDetails:
+          duration (of form "PT3M18S" (ISO 8601 duration))
+        statistics:
+          viewCount, likeCount, dislikeCount, favouriteCount, commentCount
+    '''
     yt_id = re.search("(\?|\&)v=([a-zA-Z0-9_-]*)", url)
 
     if yt_id is None:
@@ -241,35 +267,28 @@ class url_info_finder(helpers.Plugin):
     elif "&v=" in yt_id:
       yt_id = yt_id.partition("&v=")[2]
 
-    yt_api_key = self.parent.config['api_keys']['youtube']
-    yt_string_start = "https://www.googleapis.com/youtube/v3/videos?id="
-    yt_string_end = "&part=snippet,statistics,contentDetails"
-    api_url = yt_string_start + yt_id + "&key=" + yt_api_key + yt_string_end
-
+    yt_api_key = self.config['api_keys']['youtube']
+    api_url = 'https://www.googleapis.com/youtube/v3/videos?id={}&key={}&part=snippet,statistics,contentDetails'.format(yt_id, yt_api_key)
     logging.debug("api url:%s", api_url)
 
     try:
-      result = json.load(urllib.request.urlopen(api_url))
-    except:
-      logging.debug("url_finder error: youtube error, either urllib or json fail")
+      req = urllib.request.urlopen(api_url)
+      result = json.loads(req.read().decode('utf-8'))
+    except BaseException as e:
+      logging.debug('url_finder error - json load fail: {}'.format(e))
       return None
 
     if not result["items"]:
-      logging.debug("url_finder error: youtube error, no info on video")
+      logging.debug('url_finder error: youtube error, no info on video')
       return None
 
-    l = result["items"][0]
-    stats = l["statistics"]
-    details = l["contentDetails"]
-    snippet = l["snippet"]
-
-    title = snippet["title"]
-    duration = (details["duration"].replace("PT", "")).lower()
-    views = stats["viewCount"]
-    dislikes = stats["dislikeCount"]
-    likes = stats["likeCount"]
-    comments = stats["commentCount"]
-    return "|YOUTUBE| " + title + " | " + duration + " | views: " + views + " |"
+    item = result["items"][0]
+    data = {
+      's': item['snippet'],
+      'stats': {k: helpers.shorten_number(v, 5) for (k, v) in item['statistics'].items()},
+      'duration': helpers.shorten_period(item['contentDetails']['duration']),
+    }
+    return "(You)Tube: {s[channelTitle]} - {s[title]} ({duration}, {stats[viewCount]} views)".format(**data)
 
   def get_title(self, source, url):
     # Make sure it won't load more than 131072, because then we might run out of memory
@@ -283,13 +302,12 @@ class url_info_finder(helpers.Plugin):
       return None
 
     try:
-      # Hacky fix for utf8 titles not being detected
-      #string = str(t.find(".//title").text.encode('latin1'), 'utf8')
+      # Hacky fix for utf-8 titles not being detected
+      #string = str(t.find(".//title").text.encode('latin1'), 'utf-8')
       return soup.title.string
     except:
       logging.debug("url_finder error: didn't find title tags")
       return None
-
     #return string
 
   def find_urls(self, text):
@@ -307,28 +325,13 @@ class url_info_finder(helpers.Plugin):
     for url in self.find_urls(msg):
       info, rdr_url = self.get_url_info(url)
       if info is not None:
+        titlestr = helpers.sanitise_string(info).strip()  # Sanitise first since that will convert unicode whitespace
         # Add info about number of times linked
-        info += self.search_add_database(url, nick)
-        info = "[" + info + "]"
-        # The color code for the message (green), the 0x02 is just a hack
-        color = "\x033"
-        # If NSFW found in msg, mark it red
-        if re.search(r'(nsfw|NSFW)', msg) is not None:
-          color = "\x030,4"
-        # If NSFL found in msg, mark it other color
-        if re.search(r'(nsfl|NSFL)', msg) is not None:
-          color = "\x030,6"
-        # Sanitizing the message
-        forbidden = ["\n", "\r", "\t", "\f", "\v"]
-        for i in forbidden:
-          info = info.replace(i, " ")
+        info = '[{}{}]'.format(titlestr, self.search_add_database(url, nick))
 
-        # Remove any empty start
-        info = info.lstrip()
         if len(info) > 150:
           info = info[0:150]
           info += "(...)]"
 
-        info_message = '%s%s' % (color, info)
-        url_info_list.append(info_message)
+        url_info_list.append(info)
     return url_info_list

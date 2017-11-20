@@ -5,6 +5,7 @@ import logging
 import json
 import urllib.request
 import time
+import threading  # Stopgap solution
 
 
 class BTC(helpers.Plugin):
@@ -41,10 +42,17 @@ class BTC(helpers.Plugin):
         cooldown = self.config['cooldown']
       if current_time > self.last_request + cooldown:
         self.last_request = current_time
-        price_str = self.get_price(currency)
-        self.parent.send_msg(msg_data['channel'], price_str)
+        thread = threading.Thread(target=self.get_price, args=(msg_data,))
+        thread.start()
+        #price_str = self.get_price(currency)
+        #self.parent.send_msg(msg_data['channel'], price_str)
 
-  def get_price(self, currency="USD"):
+  def get_price(self, msg_data, currency="USD"):
+    today = datetime.date.today()
+    d_ago = today - datetime.timedelta(days=1)
+    week_ago = today - datetime.timedelta(days=7)
+    month_ago = today - datetime.timedelta(days=30)
+
     current_api = "https://api.coindesk.com/v1/bpi/currentprice.json"
     lastM_api = "https://api.coindesk.com/v1/bpi/historical/close.json"
     coinbase_api_buy = "https://api.coinbase.com/v2/prices/BTC-{}/buy".format(currency)
@@ -52,64 +60,46 @@ class BTC(helpers.Plugin):
     try:
       current_r = urllib.request.urlopen(current_api).read()
       lastM_r = urllib.request.urlopen(lastM_api).read()
-      coinbase_buy_r = urllib.request.urlopen(coinbase_api_buy).read()
-      coinbase_sell_r = urllib.request.urlopen(coinbase_api_sell).read()
-    except urllib.error.HTTPError:
-      logging.debug("BTC: couldn't make the request")
-      return ""
-    try:
+      coinbase_ask_r = urllib.request.urlopen(coinbase_api_buy).read()
+      coinbase_bid_r = urllib.request.urlopen(coinbase_api_sell).read()
       current_j = json.loads(current_r.decode('utf-8'))
       lastM_j = json.loads(lastM_r.decode('utf-8'))
-      coinbase_buy_j = json.loads(coinbase_buy_r.decode('utf-8'))
-      coinbase_sell_j = json.loads(coinbase_sell_r.decode('utf-8'))
-    except:
-      logging.debug("BTC: couldn't decode the request")
-      return ""
-
-    today = datetime.date.today()
-    d_ago = today - datetime.timedelta(days=1)
-    week_ago = today - datetime.timedelta(days=7)
-    month_ago = today - datetime.timedelta(days=30)
-
-    try:
+      coinbase_ask_j = json.loads(coinbase_ask_r.decode('utf-8'))
+      coinbase_bid_j = json.loads(coinbase_bid_r.decode('utf-8'))
       if d_ago.isoformat() not in lastM_j["bpi"]: #depending on timezone, day might not have changed yet!
         d_ago = d_ago - datetime.timedelta(days=1)
-      usd_price_1d = lastM_j["bpi"][d_ago.isoformat()]
-      usd_price_1w = lastM_j["bpi"][week_ago.isoformat()]
-      usd_price_1m = lastM_j["bpi"][month_ago.isoformat()]
-    except:
-      logging.debug("BTC: api changed or date/time error")
+      usd_price_1d = float(lastM_j["bpi"][d_ago.isoformat()])
+      usd_price_1w = float(lastM_j["bpi"][week_ago.isoformat()])
+      usd_price_1m = float(lastM_j["bpi"][month_ago.isoformat()])
+
+      usd_price = float(current_j["bpi"]["USD"]["rate"].replace(',',''))
+      coinbase_ask_price = float(coinbase_ask_j["data"]["amount"])
+      coinbase_bid_price = float(coinbase_bid_j["data"]["amount"])
+    except BaseException as e:
+      logging.debug('BTC: request/parse error - {}'.format(e))
       return ""
 
-    try:
-      usd_price = current_j["bpi"]["USD"]["rate"]
-      #eur_price = current_j["bpi"]["EUR"]["rate"]
-      coinbase_buy_price = coinbase_buy_j["data"]["amount"]
-      coinbase_sell_price = coinbase_sell_j["data"]["amount"]
-    except:
-      logging.debug("BTC: the api probably changed")
-      return ""
-
-    d_change = (1 - (float(usd_price.replace(",","")) / float(usd_price_1d))) * -100
-    week_change = (1 - (float(usd_price.replace(",","")) / float(usd_price_1w))) * -100
-    month_change = (1 - (float(usd_price.replace(",","")) / float(usd_price_1m))) * -100
+    d_change = self.format_change(usd_price, usd_price_1d, 'd')
+    w_change = self.format_change(usd_price, usd_price_1w, 'w')
+    m_change = self.format_change(usd_price, usd_price_1m, 'm')
     if currency == "USD":
-      response_str = "BTC/USD - Coinbase: Bid=${} Ask=${} | CoinDesk: Spot=${} {} {} {}".format(coinbase_sell_price, coinbase_buy_price, usd_price.split(".", 1)[0], self.format_change(d_change, "d"), self.format_change(week_change, "w"), self.format_change(month_change, "m"))
+      response_str = "BTC/USD - Coinbase: Bid=${:.2f} Ask=${:.2f} | CoinDesk: Spot=${:.2f} {} {} {}".format(coinbase_bid_price, coinbase_ask_price, usd_price, d_change, w_change, m_change)
     else:
-      response_str = "BTC/{} - Coinbase: Bid=${} Ask=${} | CoinDesk does not support this currency.".format(currency, coinbase_sell_price, coinbase_buy_price)
-    #response_str = "฿: $" + usd_price.split(".", 1)[0] +  " " + \
-    #    self.format_change(d_change, "d") + " " + self.format_change(week_change, "w") + " " + self.format_change(month_change, "m")
-    return response_str
+      response_str = "BTC/{} - Coinbase: Bid=${} Ask=${} | CoinDesk does not support this currency.".format(currency, coinbase_bid_price, coinbase_ask_price)
+    #return response_str
+    self.parent.send_msg(msg_data['channel'], response_str)
 
-  def format_change(self, change, char):
-    if change > 0:
-      arrow = "↑"
-      color = "\x033"
+  def format_change(self, new_price, old_price, char):
+    data = {
+      'char': char,
+      'change': (new_price-old_price)/old_price,
+    }
+    if data['change'] > 0:
+      data['arrow'] = "↑"
+      data['color'] = "\x033"
     else:
-      arrow = "↓"
-      color = "\x034"
-
-    change = color + char + ":" + arrow + str(round(change, 2)) + "%"
-    return change
+      data['arrow'] = "↓"
+      data['color'] = "\x034"
+    return '{color}{char}:{arrow}{change:.2%}'.format(**data)
 
 #“Powered by (((CoinDesk)))”

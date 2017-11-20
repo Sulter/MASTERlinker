@@ -7,19 +7,26 @@ import threading
 
 
 class wolfram(helpers.Plugin):
+  def __init__(self, parent):
+    super().__init__(parent)
+    default_config = {
+      'api_key': "Wolfram Alpha API key",
+    }
+    self.config = helpers.parse_config('settings_wolfram.json', default_config)
+
   def handle_pm(self, msg_data):
     # Ignore private messages, to prevent from flooding/api usage etc.
     pass
 
   def handle_message(self, msg_data):
     if msg_data["message"].startswith("!WA "):
-      t = threading.Thread(target=self.wolfram_thread, args=(main_ref, msg_data))
+      t = threading.Thread(target=self.wolfram_thread, args=(msg_data,))
       t.start()
 
   def wolfram_thread(self, msg_data):
     phrase = msg_data["message"].replace("!WA ","", 1).replace(" ", "%20").replace("&", "").replace("/", "%2F")
     if phrase:
-      url = "http://api.wolframalpha.com/v2/query?input=" + phrase + "&appid=" + settings.wa_api_key
+      url = 'http://api.wolframalpha.com/v2/query?input={}&appid={}'.format(phrase, self.config['api_key'])
       try:
         string = urllib.request.urlopen(url).read(10000000)
       except:
