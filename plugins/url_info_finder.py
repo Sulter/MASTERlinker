@@ -2,6 +2,7 @@
 import includes.helpers as helpers
 import re
 import urllib
+import urllib.parse
 from http.cookiejar import CookieJar
 #import lxml.html
 from bs4 import BeautifulSoup
@@ -11,31 +12,45 @@ import threading
 import sqlite3
 import time
 import datetime
+import subprocess
 
 
 class url_info_finder(helpers.Plugin):
   TLDs = [
-    "com",
-    "biz",
-    "edu",
-    "gov",
-    "int",
-    "mil",
-    "moe",
-    "net",
-    "org",
-    "xxx",
-    "aero",
-    "asia",
-    "coop",
-    "info",
-    "jobs",
-    "name",
-    "musem",
-    "travel",
+    'com',
+    'biz',
+    'edu',
+    'gov',
+    'int',
+    'mil',
+    'moe',
+    'net',
+    'org',
+    'xxx',
+    'aero',
+    'asia',
+    'coop',
+    'info',
+    'jobs',
+    'name',
+    'musem',
+    'travel',
   ]
-  url_regex = re.compile("((https?://|www.)\S+)|(\S+\.([a-z][a-z]|" + "|".join(TLDs) + ")\S*)", re.IGNORECASE)
-  url_prefix = re.compile("(https?://www\.)|(https?://|www\.)", re.IGNORECASE)
+  url_regex = re.compile('((https?://|www.)\S+)|(\S+\.([a-z][a-z]|{})\S*)'.format('|'.join(TLDs)), re.IGNORECASE)
+  url_prefix = re.compile('(https?://www\.)|(https?://|www\.)', re.IGNORECASE)
+  ffprobe_types = [
+    'aac',
+    'm4a',
+    'mkv',
+    'mp3',
+    'mp4',
+    'ogg',
+    'wav',
+    'flac',
+    'opus',
+    'webm',
+  ]
+  ffprobe_regex = re.compile('\.({})\Z'.format('|'.join(ffprobe_types)), re.IGNORECASE)
 
   def __init__(self, parent):
     super().__init__(parent)
@@ -43,6 +58,7 @@ class url_info_finder(helpers.Plugin):
       'api_keys': {
       'youtube': "Youtube Data API key",
       },
+      'ffprobe_enabled': False,
     }
     self.config = helpers.parse_config('settings_url_info_finder.json', default_config)
 
@@ -121,14 +137,6 @@ class url_info_finder(helpers.Plugin):
       conn.commit()
       return ""
 
-  def bytestring(self, n):
-    tiers = ['B', 'KB', 'MB', 'GB']
-    i = 0
-    while n >= 1024 and i < len(tiers):
-      n = n / 1024
-      i += 1
-    return "{:.0f}".format(n) + tiers[i]
-
   def get_url_info(self, url, ignore_redirects=False):
     if "https://" not in url and "http://" not in url:
       url = "http://" + url
@@ -138,19 +146,22 @@ class url_info_finder(helpers.Plugin):
       cj = CookieJar()
       opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
       opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
-      url_safe = urllib.parse.quote(url, safe=":/?=&")
+      if url == urllib.parse.unquote(url):
+        url_safe = urllib.parse.quote(url, safe=":/?=&")
+      else:
+        url_safe = url
       source = opener.open(url_safe)
       logging.debug("url open:%s", url)
       if url_safe != url:
         logging.debug("url quoted to:%s", url_safe)
-    except:
-      logging.debug("url_finder error: could not open site - %s", url)
+    except BaseException as e:
+      logging.debug("url_finder error: could not open site - {} - {}".format(url, e))
       raise
       return None, None
 
     redirect_warning = ""
     rdr_url = source.geturl()
-    if rdr_url != url and ignore_redirects is False:
+    if rdr_url != url and rdr_url != url_safe and ignore_redirects is False:
       redirect_warning = "→"
 
     url = url.rstrip("/")
@@ -165,41 +176,36 @@ class url_info_finder(helpers.Plugin):
     if not header_content_type:
       detected_file_header = source.read(4)
       source.close()
-      return "!this webserver might be malicious! detected content-type: " + detected_file_header[1:4], rdr_url
+      return "!potentially malicious! detected content-type: " + detected_file_header[1:4], rdr_url
 
+    return_string = None
     if "html" in header_content_type:  # Resolve normal text type site - get the "title"
       # If it's a normal text/html we just find the title heads, except if it's a youtube video
       if ".youtube." in source.geturl():
         yt = self.yt_info(source.geturl())
-        if yt is None:
-          return_string = self.get_title(source, url)
-        else:
+        if yt:
           source.close()
           return yt, rdr_url
-
       elif "github.com" in url:
         git = self.github_info(url)
-        if git is None:
-          return_string = self.get_title(source, url)
-        else:
+        if git:
           source.close()
           return git, rdr_url
-      else:
-        return_string = self.get_title(source, url)
+      return_string = self.get_title(source, url)
+    elif self.config['ffprobe_enabled']:
+      if re.search(self.ffprobe_regex, url):
+        return_string = self.ffprobe_info(url)
 
-      if return_string is not None:
-        return_string = (return_string.lstrip()).rstrip()
-        source.close()
-        return redirect_warning + return_string, rdr_url
-      #else:
-        #source.close()
-        #return None, rdr_url
+    if return_string:
+      return_string = return_string.strip()
+      source.close()
+      return redirect_warning + return_string, rdr_url
 
     # Fall through: Other types, just show the content type and content length (if any!)
     return_string = source.info().get("Content-type")
     if source.info().get("Content-Length") is not None:
       return_string = return_string + " |  " + str(
-        self.bytestring(int(source.info().get("Content-Length"))))
+        helpers.bytestring(int(source.info().get("Content-Length"))))
     # Check for imgur
     if "i.imgur.com" in url:  # we check the title of the album
       rex = '(.gif|.png|.jpeg|.img|.jpg|.bmp)\Z'  # common image formats, search at end of string
@@ -211,6 +217,43 @@ class url_info_finder(helpers.Plugin):
           return_string = (img_title.lstrip()).rstrip() + " | " + return_string
     source.close()
     return redirect_warning + return_string, rdr_url
+
+  def ffprobe_info(self, url):
+    '''
+    Get title and duration info of media files
+    '''
+    try:
+      proc = subprocess.Popen(['ffprobe', '-v', 'quiet', '-of', 'json', '-show_format', '-show_streams', url], shell=False, stdout=subprocess.PIPE)
+      procout = proc.communicate()[0].strip().decode('utf-8')
+      media = json.loads(procout)
+    except BaseException as e:
+      logging.error('ffprobe error - {}'.format(e))
+      return
+    try:
+      # Videos seem to be well behaved on this. Ogg files not so much.
+      title = media['format']['tags']['title']
+    except:
+      # Just case-insensitive search the flat structure, there's too many possibilities.
+      try:
+        title = re.search('"title": "(.*?)"', procout, re.IGNORECASE)[1]
+      except:
+        # Just use the filename since everything sucks.
+        title = url.split('/')[-1]
+        title = urllib.parse.unquote(title)
+    return_string = re.sub('\[.*?\]', '', title).strip()
+
+    try:
+      duration = helpers.seconds_to_shortened(int(media['format']['duration'].split('.')[0]))
+    except:
+      duration = None
+    try:
+      size = helpers.bytestring(int(media['format']['size']))
+    except:
+      size = None
+    metadata = ', '.join(filter(None, [duration, size]))
+    if metadata:
+      return_string = '{} ({})'.format(return_string, metadata)
+    return return_string
 
   def github_info(self, url):
     result = re.search("(\.com)(/[^ /]+/[^ /]+$)", url)

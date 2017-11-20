@@ -169,3 +169,27 @@ def shorten_period(string, max_terms=2, collapse_weeks=True):
     date_components = new_date
   components = date_components + time_components
   return ''.join(components[:max_terms])
+
+def seconds_to_shortened(number, max_terms=2):
+  '''
+  Similar to shorten_period formatting, but with a float/int seconds input.
+  Goes up to days.
+  '''
+  number = int(number)  # Really don't care about subseconds
+  s = (number%60, 's')
+  m = ((number//60)%60, 'm')
+  h = ((number//3600)%24, 'h')
+  d = (number//86400, 'd')
+  times = []
+  for (n, c) in [d, h, m, s]:
+    if n > 0:
+      times.append('{}{}'.format(n, c))
+  return ''.join(times[:max_terms])
+
+def bytestring(n):
+  tiers = ['B', 'KiB', 'MiB', 'GiB']
+  i = 0
+  while n >= 1024 and i < len(tiers):
+    n = n / 1024
+    i += 1
+  return "{:.1f}".format(n) + tiers[i]
