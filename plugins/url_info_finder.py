@@ -156,7 +156,6 @@ class url_info_finder(helpers.Plugin):
         logging.debug("url quoted to:%s", url_safe)
     except BaseException as e:
       logging.debug("url_finder error: could not open site - {} - {}".format(url, e))
-      raise
       return None, None
 
     redirect_warning = ""
@@ -318,20 +317,25 @@ class url_info_finder(helpers.Plugin):
       req = urllib.request.urlopen(api_url)
       result = json.loads(req.read().decode('utf-8'))
     except BaseException as e:
-      logging.debug('url_finder error - json load fail: {}'.format(e))
+      logging.error('url_finder error - json load fail: {}'.format(e))
       return None
 
-    if not result["items"]:
-      logging.debug('url_finder error: youtube error, no info on video')
-      return None
+    try:
+      if not result['items']:
+        logging.error('url_finder error: youtube error, no info on video')
+        return None
 
-    item = result["items"][0]
-    data = {
-      's': item['snippet'],
-      'stats': {k: helpers.shorten_number(v, 5) for (k, v) in item['statistics'].items()},
-      'duration': helpers.shorten_period(item['contentDetails']['duration']),
-    }
-    return "(You)Tube: {s[channelTitle]} - {s[title]} ({duration}, {stats[viewCount]} views)".format(**data)
+      item = result['items'][0]
+      data = {
+        's': item['snippet'],
+        'stats': {k: helpers.shorten_number(v, 5) for (k, v) in item['statistics'].items()},
+        'duration': helpers.shorten_period(item['contentDetails']['duration']),
+      }
+      info = "(You)Tube: {s[channelTitle]} - {s[title]} ({duration}, {stats[viewCount]} views)".format(**data)
+      logging.debug('url_finder: YT info is {}'.format(info))
+      return info
+    except BaseException as e:
+      logging.error('url_finder error - parse fail: {}'.format(e))
 
   def get_title(self, source, url):
     # Make sure it won't load more than 131072, because then we might run out of memory
