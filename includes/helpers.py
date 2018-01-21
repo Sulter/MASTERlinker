@@ -12,10 +12,14 @@ class Plugin:
     self.parent = parent
 
   def handle_message(self, msg_data):
+    '''
+    This method is called for each plugin whenever a message is received on a channel.
+    '''
     pass
 
   def handle_pm(self, msg_data):
     '''
+    This method is called for each plugin whenever a direct message is received.
     By default, treat private messages the same as channel messages.
     '''
     self.handle_message(msg_data)
