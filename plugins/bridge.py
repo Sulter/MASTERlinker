@@ -61,6 +61,7 @@ class bridge(helpers.Plugin):
   def parse_message(self, m):
     try:
       nick, msg = m.split(':', 1)
+      nick = nick[0]+'\ufeff'+nick[1:]
       message = '{}<{}> {}'.format(self.config['in_prefix'], nick, msg)
       self.parent.send_msg(self.config['channel'], message)
     except ValueError:
