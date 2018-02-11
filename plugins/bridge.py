@@ -153,8 +153,10 @@ class bridge(helpers.Plugin):
 
   def add_pseudouser(self, nick):
     if not self.parent.single_user:
+      chan = self.config['channel']
+      chans = [] if self.parent.nick_in_channel(nick, chan) else [chan]
       p_nick = '{}{}'.format(nick, self.config['in_prefix'])
-      uid = self.parent.add_pseudouser(p_nick, [self.config['channel']], self.config['hostmask'], nick, '{} user'.format(self.config['remote_name']))
+      uid = self.parent.add_pseudouser(p_nick, chans, self.config['hostmask'], nick, '{} user'.format(self.config['remote_name']))
       self.pseudousers[nick] = uid
 
   def rename_pseudouser(self, oldnick, newnick):

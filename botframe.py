@@ -153,13 +153,15 @@ class botframe():
     if chan in self.channels:
       self.channels[chan] = set()
       for u in ul:
-        self.channels[chan].add(u.lstrip(helpers.USER_CHARS))
+        n = u.lstrip(helpers.USER_CHARS)
+        if n != self.config['connection']['nick']:
+          self.channels[chan].add(n)
       self.call_plugin_handlers('handle_userlist', {'channel': chan, 'userlist': self.channels[chan]})
 
   def handle_join(self, sender, params):
     chan = params.lstrip(':')
     nick = sender.partition("!")[0]
-    if chan in self.channels:
+    if chan in self.channels and nick != self.config['connection']['nick']:
       self.channels[chan].add(nick)
       self.call_plugin_handlers('handle_join', {'nick': nick, 'channel': chan})
 
