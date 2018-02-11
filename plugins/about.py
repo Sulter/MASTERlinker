@@ -14,8 +14,8 @@ class about(helpers.Plugin):
       return None
 
     data = {
-      'bot_name': 'MASTERlinker <segwit2space>',
-      'url': 'https://github.com/Birdulon/MASTERlinker',
+      'bot_name': 'MASTERlinker',
+      'url': 'https://github.com/Sulter/MASTERlinker',
       'commit': self.get_commit_info(),
       'plugins': ', '.join(sorted(self.parent.loaded_plugins.keys())),
     }
