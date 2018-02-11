@@ -55,4 +55,4 @@ class wolfram(helpers.Plugin):
                   response = response.replace(i, " ")
                 response = response[0:300]
                 response = "\x033[WOLFRAM ALPHA | " + response + "]"
-                self.parent.send_msg(msg_data["channel"], response)
+                self.send_msg(msg_data["channel"], response)

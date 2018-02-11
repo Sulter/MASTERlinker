@@ -57,4 +57,4 @@ class stats(helpers.Plugin):
       lines = row[1]
 
     response = "Counting {} words in {} lines".format(words, lines)
-    self.parent.send_msg(msg_data["channel"], response)
+    self.send_msg(msg_data["channel"], response)

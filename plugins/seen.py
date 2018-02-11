@@ -64,4 +64,4 @@ class seen(helpers.Plugin):
         time_str = helpers.time_string(datetime.timedelta(seconds=diff))
         response = "I saw {} {}".format(nick, time_str)
 
-    self.parent.send_msg(msg_data["channel"], response)
+    self.send_msg(msg_data["channel"], response)

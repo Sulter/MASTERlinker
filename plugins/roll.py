@@ -14,7 +14,7 @@ class roll(helpers.Plugin):
       return None
     roll_number = msg_data["message"].replace("!roll", "")
     if not self.is_number(roll_number):
-      self.parent.send_msg(msg_data["channel"], "Invalid syntax. Please call '!roll n' where n is an integer.")
+      self.send_msg(msg_data["channel"], "Invalid syntax. Please call '!roll n' where n is an integer.")
       return None
     number = int(roll_number)
     if number < 2:
@@ -22,7 +22,7 @@ class roll(helpers.Plugin):
     response = msg_data["nick"] + " rolled a "
     response += str(randrange(number) + 1)
     response += "."
-    self.parent.send_msg(msg_data["channel"], response)
+    self.send_msg(msg_data["channel"], response)
 
   def is_number(self, s):
     try:

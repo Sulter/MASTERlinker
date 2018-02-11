@@ -5,11 +5,20 @@ import logging
 import os
 import re
 import unicodedata
+import string
 
+USER_CHARS = ':+^@&'
+BASE36 = string.digits + string.ascii_uppercase
 
 class Plugin:
   def __init__(self, parent):
     self.parent = parent
+    self.preferred_nick = None
+
+  def send_msg(self, channel, message, sender=None):
+    if sender is None:
+      sender = self.preferred_nick
+    self.parent.send_msg(channel, message, sender)
 
   def handle_message(self, msg_data):
     '''
@@ -24,6 +33,38 @@ class Plugin:
     '''
     self.handle_message(msg_data)
 
+  def handle_userlist(self, params):
+    pass
+
+  def handle_join(self, params):
+    pass
+
+  def handle_nick(self, params):
+    pass
+
+  def handle_part(self, params):
+    pass
+
+  def handle_quit(self, params):
+    pass
+
+
+def int_to_base36(i, pad_digits=1):
+  assert i >= 0
+  digits = []
+  while len(digits) < pad_digits or i > 0:
+    i, digit = divmod(i, 36)
+    digits.append(BASE36[digit])
+  return ''.join(digits[::-1])
+
+def generate_uid(maximum, recycle_set, SID):
+  next_num = int('AAAAAA', 36)
+  while next_num < maximum:
+    if len(recycle_set) > 0:
+      yield recycle_set.pop()
+    else:
+      yield SID + int_to_base36(next_num)
+      next_num += 1
 
 def parse_config(filename, default):
   config = copy.copy(default)
@@ -197,3 +238,11 @@ def bytestring(n):
     n = n / 1024
     i += 1
   return "{:.1f}".format(n) + tiers[i]
+
+NICK_COLORS = [2, 3, 4, 5, 6, 7, 9, 10, 12, 13, 14]
+def colorize_nick(nick):
+  color = NICK_COLORS[int.from_bytes(nick.encode('utf-8'), 'big') % len(NICK_COLORS)]
+  return '\x03{}{}\x0F'.format(color, nick)
+
+def dehighlight_nick(nick):
+  return nick[0]+'\ufeff'+nick[1:]

@@ -5,4 +5,4 @@ import includes.helpers as helpers
 class respond(helpers.Plugin):
   def handle_message(self, msg_data):
     response = "What did you say to me, " + msg_data["nick"] + "?!"
-    self.parent.send_msg(msg_data["channel"], response)
+    self.send_msg(msg_data["channel"], response)

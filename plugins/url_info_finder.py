@@ -59,8 +59,10 @@ class url_info_finder(helpers.Plugin):
       'youtube': "Youtube Data API key",
       },
       'ffprobe_enabled': False,
+      'preferred_nick': 'URLServ',
     }
     self.config = helpers.parse_config('settings_url_info_finder.json', default_config)
+    self.preferred_nick = parent.add_pseudouser(self.config['preferred_nick'])
 
   def handle_pm(self, msg_data):
     # Ignore private messages, to prevent from flooding/api usage etc.
@@ -88,7 +90,7 @@ class url_info_finder(helpers.Plugin):
       # Add a nice ending, if the message is too long
       if len(info_string) > 440:
         info_string = info_string[0:440] + "(...)]"
-      self.parent.send_msg(msg_data["channel"], '{}{}'.format(color, info_string))
+      self.send_msg(msg_data["channel"], '{}{}'.format(color, info_string))
 
   def search_add_database(self, url, nick):
     '''

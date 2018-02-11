@@ -20,7 +20,7 @@ class about(helpers.Plugin):
       'plugins': ', '.join(sorted(self.parent.loaded_plugins.keys())),
     }
     response = "Running {bot_name} - version {commit} ({url}). Loaded plugins: {plugins}.".format(**data)
-    self.parent.send_msg(msg_data["channel"], response)
+    self.send_msg(msg_data["channel"], response)
 
   def get_commit_info(self):
     process = subprocess.Popen(['git', 'log', '-1', '--format=%h (%ci)'], shell=False, stdout=subprocess.PIPE)
