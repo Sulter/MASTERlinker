@@ -13,6 +13,47 @@ import sqlite3
 import time
 import datetime
 import subprocess
+import random
+import html
+import codecs
+import requests
+
+
+ESCAPE_SEQUENCE_RE = re.compile(r'''
+  ( \\U........      # 8-digit hex escapes
+  | \\u....          # 4-digit hex escapes
+  | \\x..            # 2-digit hex escapes
+  | \\[0-7]{1,3}     # Octal escapes
+  | \\N\{[^}]+\}     # Unicode characters by name
+  | \\[\\'"abfnrtv]  # Single-character escapes
+  )''', re.UNICODE | re.VERBOSE)
+
+def decode_escapes(s):
+  def decode_match(match):
+    return codecs.decode(match.group(0), 'unicode-escape')
+  return ESCAPE_SEQUENCE_RE.sub(decode_match, s)
+
+def ufeff_nick(nick):
+  if len(nick) > 1:
+    return nick[0] + '\ufeff' + nick[1:]
+  return nick
+
+def get_ytid(url):
+  domain, _, params = url.partition('/')
+  if domain == 'youtu.be':
+    return params.partition('?')[0]
+  elif domain in ['youtube.com', 'm.youtube.com']:
+    yt_id = re.search("(\?|\&)v=([a-zA-Z0-9_-]*)", url)
+    if yt_id is None:
+      return None
+    yt_id = yt_id.group()
+    if '?v=' in yt_id:
+      yt_id = yt_id.partition("?v=")[2]
+    elif '&v=' in yt_id:
+      yt_id = yt_id.partition("&v=")[2]
+    return yt_id
+  return None
+
 
 
 class url_info_finder(helpers.Plugin):
@@ -37,6 +78,7 @@ class url_info_finder(helpers.Plugin):
     'travel',
   ]
   url_regex = re.compile('((https?://|www.)\S+)|(\S+\.([a-z][a-z]|{})\S*)'.format('|'.join(TLDs)), re.IGNORECASE)
+  reddit_regex = re.compile('reddit.com', re.IGNORECASE)
   url_prefix = re.compile('(https?://www\.)|(https?://|www\.)', re.IGNORECASE)
   ffprobe_types = [
     'aac',
@@ -52,6 +94,18 @@ class url_info_finder(helpers.Plugin):
   ]
   ffprobe_regex = re.compile('\.({})\Z'.format('|'.join(ffprobe_types)), re.IGNORECASE)
 
+  tax_strs = [
+    "€{amount:.02f} has been deducted from {nick}'s account.",
+    "€{amount:.02f} has been removed from {nick}'s account.",
+    "€{amount:.02f} has been abducted from {nick}'s account.",
+    "€{amount:.02f} has been confiscated from {nick}'s account.",
+    "€{amount:.02f} has been withdrawn from {nick}'s account.",
+    "€{amount:.02f} has been taxed from {nick}'s account.",
+    "accounts['{nick}'] -= €{amount:.05f}",
+    "{nick} just paid €{amount:.02f} in copyright fees.",
+    "{nick} paid €{amount:.02f} in copyright fees.",
+  ]
+
   def __init__(self, parent):
     super().__init__(parent)
     default_config = {
@@ -59,10 +113,23 @@ class url_info_finder(helpers.Plugin):
       'youtube': "Youtube Data API key",
       },
       'ffprobe_enabled': False,
+      'europeans': (),
+      'taxed_memes': ('pog.*', '.*pepe.*', '.*monka.*', 'based', 'redpilled', 'dabs?', 'reee*?', 'gottem', 'nintendo'),
+      'taxrate_memes': 1.0,
+      'taxrate_links': 0.0,
+      'format_link': '\x033',
+      'format_nsfw': '\x030,4',
+      'format_nsfl': '\x030,6',
+      'format_eurotax': '\x038,1',
     }
     self.config = helpers.parse_config('settings_url_info_finder.json', default_config)
+    self.tax_regex = re.compile('\\b({})\\b'.format('|'.join(self.config['taxed_memes'])), re.IGNORECASE)
+    random.seed()
 
   def handle_pm(self, msg_data):
+    if msg_data['message'].lower().startswith('!reload'):
+      self.config = helpers.parse_config('settings_btc.json', self.default_config)
+      self.tax_regex = re.compile('\\b({})\\b'.format('|'.join()), re.IGNORECASE)
     # Ignore private messages, to prevent from flooding/api usage etc.
     pass
 
@@ -72,23 +139,43 @@ class url_info_finder(helpers.Plugin):
     thread.start()
 
   def start_thread(self, msg_data):
-    # The color code for the message (green), the 0x02 is just a hack
-    color = "\x033"
+    # Determine if user needs to be taxed
+    taxable = msg_data['nick'].lower() in self.config['europeans']
+    # The color code for the message (green)
+    color = self.config['format_link']
     # If NSFW found in msg, mark it red
     if re.search(r'(nsfw|NSFW)', msg_data["message"]) is not None:
-      color = "\x030,4"
+      color = self.config['format_nsfw']
     # If NSFL found in msg, mark it other color
     if re.search(r'(nsfl|NSFL)', msg_data["message"]) is not None:
-      color = "\x030,6"
+      color = self.config['format_nsfl']
     # Find all url links in the message, and send info about them, in one formatted string
     url_info_list = self.parse_msg(msg_data["message"], msg_data["nick"])
     info_string = ' '.join(url_info_list)
 
+    tax = 0
+    if taxable:
+      try:
+        memes = len(re.findall(self.tax_regex, msg_data['message']))
+        links = len(url_info_list)
+        tax = (memes*self.config['taxrate_memes'] + links*self.config['taxrate_links']) * random.uniform(0.95, 1.5)
+      except BaseException as e:
+        logging.debug('Taxation problem: {}'.format(e))
+
     if info_string:
-      # Add a nice ending, if the message is too long
-      if len(info_string) > 440:
-        info_string = info_string[0:440] + "(...)]"
-      self.parent.send_msg(msg_data["channel"], '{}{}'.format(color, info_string))
+      try:
+        tax_str = ''
+        max_len = 440
+        if tax > 0.5:
+          nick = msg_data['nick'][:2] + '\ufeff' + msg_data['nick'][2:]
+          tax_str = ' ' + self.config['format_eurotax'] + random.choice(self.tax_strs).format(amount=tax, nick=nick)
+          max_len -= len(tax_str)
+        # Add a nice ending, if the message is too long
+        if len(info_string) > max_len:
+          info_string = info_string[0:max_len] + "(...)]"
+        self.parent.send_msg(msg_data["channel"], '{}{}{}'.format(color, info_string, tax_str))
+      except BaseException as e:
+        logging.debug('Taxation message problem: {}'.format(e))
 
   def search_add_database(self, url, nick):
     '''
@@ -100,6 +187,11 @@ class url_info_finder(helpers.Plugin):
     url = self.url_prefix.sub("", url, 1)
     hostname, *tail = url.split("/", 1) + [""]  # Guarantees that tail will contain a non-empty list
     url = "{}/{}".format(hostname.lower(), tail[0])
+    
+    # Youtube video ID matching
+    ytid = get_ytid(url)
+    if ytid:
+      url = 'YOUTUBE_VIDEO_ID_' + ytid
 
     logging.debug("we add url: " + url)
     db_path = "database/url_sql3.db"
@@ -124,6 +216,9 @@ class url_info_finder(helpers.Plugin):
       c.execute("INSERT INTO URLS(url_ID, time) VALUES(?,?)", (c.lastrowid, t))
       conn.commit()
 
+      data['nick_first'] = ufeff_nick(data['nick_first'])
+      data['nick_last'] = ufeff_nick(data['nick_last'])
+
       if data['total'] == 1:
         return " |1: {nick_first} {time_first}".format(**data)
       elif data['nick_first'] == data['nick_last']:
@@ -145,15 +240,16 @@ class url_info_finder(helpers.Plugin):
     try:
       cj = CookieJar()
       opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-      opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0')]
+      #opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:58.0) Gecko/20100101 Firefox/58.0')]
+      opener.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0')]
       if url == urllib.parse.unquote(url):
-        url_safe = urllib.parse.quote(url, safe=":/?=&")
+        url_safe = urllib.parse.quote(url, safe=":/?=&@")
       else:
         url_safe = url
-      source = opener.open(url_safe)
-      logging.debug("url open:%s", url)
       if url_safe != url:
         logging.debug("url quoted to:%s", url_safe)
+      source = opener.open(url_safe)
+      logging.debug("url open:%s", url)
     except BaseException as e:
       logging.debug("url_finder error: could not open site - {} - {}".format(url, e))
       return None, None
@@ -190,6 +286,11 @@ class url_info_finder(helpers.Plugin):
         if git:
           source.close()
           return git, rdr_url
+      elif "twitter.com" in url:
+        tw = self.twitter_info(url)
+        if tw:
+          source.close()
+          return tw, rdr_url
       return_string = self.get_title(source, url)
     elif self.config['ffprobe_enabled']:
       if re.search(self.ffprobe_regex, url):
@@ -263,9 +364,11 @@ class url_info_finder(helpers.Plugin):
       api_url = "https://api.github.com/repos" + result
       logging.debug("api url:%s", api_url)
       try:
-        result = json.load(urllib.request.urlopen(api_url))
+        #result = json.load(urllib.request.urlopen(api_url))
+        result = requests.get(api_url).json()
       except:
-        logging.debug("url_finder error: github error, either urllib or json fail")
+        #logging.debug("url_finder error: github error, either urllib or json fail")
+        logging.debug('url_finder error: github error, requests fail')
         return
 
       # Make sure it's a dictionary, otherwise we might not be looking at a repo at all!
@@ -337,23 +440,64 @@ class url_info_finder(helpers.Plugin):
     except BaseException as e:
       logging.error('url_finder error - parse fail: {}'.format(e))
 
+  def twitter_info(self, url):
+    # We have to use oembed API because twitter is forcing JS on regular pages and auth on other APIs
+    # HTML regex: "html":"(.*?[^\\])"
+    logging.debug("Attempting to decode twitter link")
+    api_url = 'https://publish.twitter.com/oembed?url=' + url
+    logging.debug("api url:%s", api_url)
+
+    try:
+      req = urllib.request.urlopen(api_url)
+      twdata = req.read().decode('utf8')
+      logging.debug('Twitter API returned: ' + twdata)
+      return_str = ' '.join(re.findall(r'\\u003E(.*?)\\u003C', twdata)).strip()
+      return_str = html.unescape(return_str).replace(r'\/', '/')
+      return_str = decode_escapes(return_str).strip()
+    except BaseException as e:
+      logging.error('url_finder error - twitter oembed load fail: {}'.format(e))
+      return None
+
+    logging.debug('Twitter result string: ' + return_str)
+    return return_str
+
   def get_title(self, source, url):
     # Make sure it won't load more than 131072, because then we might run out of memory
     try:
       #t = lxml.html.fromstring(source.read(131072))
       # BeautifulSoup is seemingly less tolerant, give it 2MB
-      soup = BeautifulSoup(source.read(2097152), 'html.parser')
-    except:
+      # UPDATE: try 4MB since twitter is garbage
+      logging.debug("Attempting to read from url: "+url)
+      data = source.read(4194304)
+      logging.debug("Source read (size {:d}), attempting to parse with BeautifulSoup...".format(len(data)))
+      soup = BeautifulSoup(data, 'html.parser')
+      #soup = BeautifulSoup(source.read(8388608), 'html.parser')
+    except BaseException as e:
       #logging.debug("url_finder error: couldn't parse with lxml")
-      logging.debug("url_finder error: couldn't parse with beautifulsoup")
+      logging.debug("url_finder error: couldn't parse with beautifulsoup: " + str(e))
       return None
+
+    try:
+      title = soup.find("meta", property="og:title", content=True)
+      if title and title["content"]:
+        return title["content"]
+      logging.debug("url_finder invalid og:title found: " + str(title))
+    except:
+      logging.debug("url_finder no og:title found: " + str(e))
 
     try:
       # Hacky fix for utf-8 titles not being detected
       #string = str(t.find(".//title").text.encode('latin1'), 'utf-8')
       return soup.title.string
-    except:
-      logging.debug("url_finder error: didn't find title tags")
+    except BaseException as e:
+      logging.debug("url_finder error: didn't find title tags: " + str(e))
+      filename = time.strftime('%Y%m%d-%H%M%S.urldata')
+      logging.debug("Dumping to file: " + filename)
+      with open(filename, 'wb') as file:
+        try:
+          file.write(data)
+        except BaseException as e:
+          logging.debug("Failed to write: " + str(e))
       return None
     #return string
 
@@ -364,6 +508,8 @@ class url_info_finder(helpers.Plugin):
         url_array.append(url[0])  # if starts with http https or www
       elif url[2]:
         url_array.append(url[2])  # if a other type of link
+    if len(re.findall(self.reddit_regex, text)) > 0:  # Reddit go home
+      url_array.append('reddit.com')
     return url_array
 
   def parse_msg(self, msg, nick):
@@ -376,8 +522,8 @@ class url_info_finder(helpers.Plugin):
         # Add info about number of times linked
         info = '[{}{}]'.format(titlestr, self.search_add_database(url, nick))
 
-        if len(info) > 150:
-          info = info[0:150]
+        if len(info) > 425:
+          info = info[0:420]
           info += "(...)]"
 
         url_info_list.append(info)
