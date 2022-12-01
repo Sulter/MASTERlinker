@@ -80,7 +80,8 @@ class botframe():
   def connect(self):
     conf = self.config['connection']
     self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #self.irc.settimeout(30)
+    #self.irc.settimeout(conf['timeout'])
+    self.irc.settimeout(30)
     if conf['ssl']:
       self.irc = ssl.wrap_socket(self.irc)
     try:
@@ -93,6 +94,8 @@ class botframe():
       if conf['nickserv_enabled']:
         self.send('PRIVMSG NickServ :IDENTIFY {nickserv_nick} {nickserv_pass}'.format(**conf))
         logging.info('Waiting for login...')
+      time.sleep(5)
+      self.send('mode {nick} +B'.format(**conf))
       time.sleep(15)  # this should be replaced by waiting for " 396 YourNick unaffiliated/youraccount :is now your hidden host (set by services.)", but that is not standard, so I'm not sure.
       # Join all channels
       logging.info('Joining channels')
