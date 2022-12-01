@@ -1,5 +1,7 @@
 .idea/
 database/
-ircbot.log
 __pycache__/
+urldata/
+*.json
+*.log
 *.pyc
