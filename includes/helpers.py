@@ -156,7 +156,7 @@ def shorten_period(string, max_terms=2, collapse_weeks=True):
   '''
   if string[0] != 'P':
     raise ValueError('Given string is not an ISO 8601 period string')
-  datestr, timestr = string[1:].split('T')  # M can be Month or Minute depending on location, so split the time component out
+  datestr, _, timestr = string[1:].partition('T')  # M can be Month or Minute depending on location, so split the time component out
   date_components = re.findall('(\d+[YMWD])', datestr)
   time_components = re.findall('(\d+[hms])', timestr.lower())
 
