@@ -39,10 +39,11 @@ def ufeff_nick(nick):
   return nick
 
 def get_ytid(url):
+  url = url.rpartition('://')[2]
   domain, _, params = url.partition('/')
   if domain == 'youtu.be':
     return params.partition('?')[0]
-  elif domain in ['youtube.com', 'm.youtube.com']:
+  elif domain in ['youtube.com', 'm.youtube.com', 'www.youtube.com']:
     yt_id = re.search("(\?|\&)v=([a-zA-Z0-9_-]*)", url)
     if yt_id is None:
       return None
@@ -54,6 +55,31 @@ def get_ytid(url):
     return yt_id
   return None
 
+# nitter_domain_regex = re.compile(r'(?:https?://)?[\w\.]*nitter[\w\.]*/(\w+)/status/(\d+).*', re.UNICODE)
+nitter_domain_regex = re.compile(r'(?:https?://)?(?:(?:[\w\.]*nitter[\w\.]*)|(?:(?:fixv|fixup)?x.com))/(\w+)/status/(\d+).*', re.UNICODE)
+def replace_nitter(url):
+  match = nitter_domain_regex.match(url)
+  # Remove trailing # section for nitter
+  if match:
+    # url = url.partition('#')[0]
+    # url = nitter_domain_regex.sub(r'https://twitter.com/\1/status/\2', url)
+    url = match.expand(r'https://twitter.com/\1/status/\2')
+  return url
+
+youtube_domain_regex = re.compile(r'(?:https?://)?youtu.be/([\w\-]+)(\?.*)?', re.UNICODE)
+youtube_shorts_regex = re.compile(r'(?:https?://)?(?:www\.)?youtube.com/shorts/([\w\-]+)(\?.*)?', re.UNICODE)
+def replace_youtube(url):
+  m = youtube_shorts_regex.findall(url)
+  if m:
+    url = 'https://www.youtube.com/watch?v=' + m[0][0]
+    if m[0][1]:  # convert first ? to &
+      url = url + '&' + m[0][1][1:]
+  m = youtube_domain_regex.findall(url)
+  if m:
+    url = 'https://www.youtube.com/watch?v=' + m[0][0]
+    if m[0][1]:  # convert first ? to &
+      url = url + '&' + m[0][1][1:]
+  return url
 
 
 class url_info_finder(helpers.Plugin):
@@ -138,7 +164,7 @@ class url_info_finder(helpers.Plugin):
     thread = threading.Thread(target=self.start_thread, args=(msg_data,))
     thread.start()
 
-  def start_thread(self, msg_data):
+  def start_thread(self, msg_data, max_len=430):
     # Determine if user needs to be taxed
     taxable = msg_data['nick'].lower() in self.config['europeans']
     # The color code for the message (green)
@@ -165,14 +191,16 @@ class url_info_finder(helpers.Plugin):
     if info_string:
       try:
         tax_str = ''
-        max_len = 440
         if tax > 0.5:
           nick = msg_data['nick'][:2] + '\ufeff' + msg_data['nick'][2:]
           tax_str = ' ' + self.config['format_eurotax'] + random.choice(self.tax_strs).format(amount=tax, nick=nick)
           max_len -= len(tax_str)
         # Add a nice ending, if the message is too long
-        if len(info_string) > max_len:
-          info_string = info_string[0:max_len] + "(...)]"
+        # Check byte-length too!
+        info_string_b = info_string.encode('utf-8')
+        if len(info_string_b) > max_len:
+          info_string = info_string_b[0:max_len-5].decode('utf-8', 'ignore') + "(...)]"
+
         self.parent.send_msg(msg_data["channel"], '{}{}{}'.format(color, info_string, tax_str))
       except BaseException as e:
         logging.debug('Taxation message problem: {}'.format(e))
@@ -187,7 +215,9 @@ class url_info_finder(helpers.Plugin):
     url = self.url_prefix.sub("", url, 1)
     hostname, *tail = url.split("/", 1) + [""]  # Guarantees that tail will contain a non-empty list
     url = "{}/{}".format(hostname.lower(), tail[0])
-    
+    url = replace_nitter(url)
+    url = replace_youtube(url)
+
     # Youtube video ID matching
     ytid = get_ytid(url)
     if ytid:
@@ -235,6 +265,27 @@ class url_info_finder(helpers.Plugin):
   def get_url_info(self, url, ignore_redirects=False):
     if "https://" not in url and "http://" not in url:
       url = "http://" + url
+    url = replace_nitter(url)
+    url = replace_youtube(url)
+    if url == urllib.parse.unquote(url):
+      url_safe = urllib.parse.quote(url, safe=":/?=&@")
+    else:
+      url_safe = url
+    if url_safe != url:
+      logging.debug("url quoted to:%s", url_safe)
+
+    def url_apis(url):
+      if ('.youtube.' in url) or ('youtu.be/' in url):
+        return self.yt_info(url)
+      elif 'github.com' in url:
+        return self.github_info(url)
+      elif 'twitter.com' in url:
+        return self.twitter_info(url)
+      return False
+    
+    api_info = url_apis(url_safe)
+    if api_info:
+      return api_info, url_safe
 
     # Open url
     try:
@@ -242,12 +293,6 @@ class url_info_finder(helpers.Plugin):
       opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
       #opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:58.0) Gecko/20100101 Firefox/58.0')]
       opener.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:72.0) Gecko/20100101 Firefox/72.0')]
-      if url == urllib.parse.unquote(url):
-        url_safe = urllib.parse.quote(url, safe=":/?=&@")
-      else:
-        url_safe = url
-      if url_safe != url:
-        logging.debug("url quoted to:%s", url_safe)
       source = opener.open(url_safe)
       logging.debug("url open:%s", url)
     except BaseException as e:
@@ -275,22 +320,11 @@ class url_info_finder(helpers.Plugin):
 
     return_string = None
     if "html" in header_content_type:  # Resolve normal text type site - get the "title"
-      # If it's a normal text/html we just find the title heads, except if it's a youtube video
-      if ".youtube." in source.geturl():
-        yt = self.yt_info(source.geturl())
-        if yt:
-          source.close()
-          return yt, rdr_url
-      elif "github.com" in url:
-        git = self.github_info(url)
-        if git:
-          source.close()
-          return git, rdr_url
-      elif "twitter.com" in url:
-        tw = self.twitter_info(url)
-        if tw:
-          source.close()
-          return tw, rdr_url
+      # If it's a normal text/html we just find the title heads
+      api_info = url_apis(source.geturl())
+      if api_info:
+        source.close()
+        return api_info, rdr_url
       return_string = self.get_title(source, url)
     elif self.config['ffprobe_enabled']:
       if re.search(self.ffprobe_regex, url):
@@ -478,12 +512,18 @@ class url_info_finder(helpers.Plugin):
       return None
 
     try:
-      title = soup.find("meta", property="og:title", content=True)
-      if title and title["content"]:
-        return title["content"]
-      logging.debug("url_finder invalid og:title found: " + str(title))
-    except:
-      logging.debug("url_finder no og:title found: " + str(e))
+      title_pre = ''
+      title_node = soup.find('meta', property='og:title', content=True)
+      desc_node = soup.find('meta', property='og:description', content=True)
+      if title_node and title_node['content']:
+        title_pre = title_node['content']
+      if desc_node and desc_node['content']:
+        return title_pre + ' - ' + desc_node['content']
+      elif title_pre != '':
+        return title_pre
+      logging.debug('url_finder invalid og:title found: ' + str(title_pre))
+    except BaseException as e:
+      logging.debug('url_finder no og:title found: ' + str(e))
 
     try:
       # Hacky fix for utf-8 titles not being detected
@@ -512,7 +552,7 @@ class url_info_finder(helpers.Plugin):
       url_array.append('reddit.com')
     return url_array
 
-  def parse_msg(self, msg, nick):
+  def parse_msg(self, msg, nick, max_len=360):
     url_info_list = []
     # First we search it for links, if any found, send message with info about them, if any
     for url in self.find_urls(msg):
@@ -522,8 +562,8 @@ class url_info_finder(helpers.Plugin):
         # Add info about number of times linked
         info = '[{}{}]'.format(titlestr, self.search_add_database(url, nick))
 
-        if len(info) > 425:
-          info = info[0:420]
+        if len(info) > max_len:
+          info = info[0:max_len-5]
           info += "(...)]"
 
         url_info_list.append(info)
