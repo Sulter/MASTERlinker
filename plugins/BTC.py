@@ -83,7 +83,7 @@ class BTC(helpers.Plugin):
       thread = threading.Thread(target=self.get_finance_price, args=(msg_data['channel'], query,))
       thread.start()
 
-  def get_finance_price(self, channel, query):
+  def get_finance_price(self, channel, query, max_len=430):
     query = query.replace('/', ':')
     parts = query.split(':')
     base = parts[0].upper()
@@ -173,7 +173,21 @@ class BTC(helpers.Plugin):
       else:
         price_formatted = f"{price:.4g}{curr_suffix}"
 
-      self.parent.send_msg(channel, f"${display_name}: {price_formatted}{change_str}")
+      msg_numbers = f'{price_formatted}{change_str}'
+      msg = f'{display_name}: {msg_numbers}'
+      if not is_forex:
+        msg_candidates = [  # in descending length
+          f'[{meta["fullExchangeName"]}] {meta["longName"]} ({display_name}): {msg_numbers}',
+          f'[{meta["fullExchangeName"]}] {meta["longName"]}: {msg_numbers}',
+          f'[{meta["fullExchangeName"]}] {meta["shortName"]}: {msg_numbers}',
+          f'[{meta["fullExchangeName"]}] {display_name}: {msg_numbers}',
+          f'{display_name}: {msg_numbers}',
+        ]
+        for m in msg_candidates:
+          msg = m
+          if len(m) <= max_len:
+            break  # Default to last one even if it's too long
+      self.parent.send_msg(channel, msg)
     except urllib.error.HTTPError as e:
       if e.code == 404:
         self.parent.send_msg(channel, f"Could not find symbol ${display_name}")
