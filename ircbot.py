@@ -91,16 +91,6 @@ class botframe():
       if conf['identifymsg_enabled']:
         self.send('CAP REQ identify-msg')
         self.send('CAP END')
-      if conf['nickserv_enabled']:
-        self.send('PRIVMSG NickServ :IDENTIFY {nickserv_nick} {nickserv_pass}'.format(**conf))
-        logging.info('Waiting for login...')
-      time.sleep(5)
-      self.send('mode {nick} +B'.format(**conf))
-      time.sleep(15)  # this should be replaced by waiting for " 396 YourNick unaffiliated/youraccount :is now your hidden host (set by services.)", but that is not standard, so I'm not sure.
-      # Join all channels
-      logging.info('Joining channels')
-      for channel in conf['channel_list']:
-        self.send('JOIN ' + channel)
     except socket.timeout as e:
       logging.warning(e)
       logging.info('Trying to reconnect')
@@ -114,11 +104,24 @@ class botframe():
     sender, cmd, params, *overflow = command
     logging.debug(command)
     handlers = {
+      '001': self.handle_welcome,
       'PING': self.handle_ping,
       'PRIVMSG': self.handle_privmsg,
     }
     if cmd in handlers:
       handlers[cmd](sender, params)
+
+  def handle_welcome(self, sender, params):
+    conf = self.config['connection']
+    if conf['nickserv_enabled']:
+      self.send('PRIVMSG NickServ :IDENTIFY {nickserv_nick} {nickserv_pass}'.format(**conf))
+      logging.info('Waiting for login...')
+    time.sleep(1)  # this should be replaced by waiting for " 396 YourNick unaffiliated/youraccount :is now your hidden host (set by services.)", but that is not standard, so I'm not sure.
+    self.send('mode {nick} +B'.format(**conf))
+    # Join all channels
+    logging.info('Joining channels')
+    for channel in conf['channel_list']:
+      self.send('JOIN ' + channel)
 
   def handle_ping(self, sender, params):
     try:
@@ -291,7 +294,7 @@ if __name__ == '__main__':
     print('ircbot.py -c <configfile> -l <logfile>')
 
   config = helpers.parse_config(config_file, default_config)
-  logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%dT%H:%M:%S', filename=log_file,
+  logging.basicConfig(format='%(asctime)s.%(msecs)03d %(message)s', datefmt='%Y-%m-%dT%H:%M:%S', filename=log_file,
                       level=getattr(logging, config['logging_level']))
   ircbot = botframe(config)
   ircbot.main()
