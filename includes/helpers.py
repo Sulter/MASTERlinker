@@ -61,15 +61,15 @@ def save_config(config_dict, filename):
 
 def time_string(tdel):
   if tdel.days > 14:
-    return "{}w ago".format(tdel.days//7)
+    return f'{tdel.days//7}w ago'
   elif tdel.days > 1:
-    return "{}d ago".format(tdel.days)
+    return f'{tdel.days}d ago'
   elif tdel.days == 1 or tdel.seconds > 7200:
-    return "{}h ago".format((tdel.days*24)+(tdel.seconds//3600))
+    return f'{(tdel.days*24)+(tdel.seconds//3600)}h ago'
   elif tdel.seconds > 120:
-    return "{}m ago".format(tdel.seconds//60)
+    return f'{tdel.seconds//60}m ago'
   else:
-    return "{}s ago".format(tdel.seconds)
+    return f'{tdel.seconds}s ago'
 
 def sanitise_string(string):
   '''
@@ -167,7 +167,7 @@ def shorten_period(string, max_terms=2, collapse_weeks=True):
       if d[-1] == 'W':
         weeks = int(d[:-1])
       elif d[-1] == 'D':
-        new_date.append('{}D'.format(int(d[:-1])+(7*weeks)))
+        new_date.append(f'{int(d[:-1])+(7*weeks)}D')
       else:
         new_date.append(d)
     date_components = new_date
@@ -187,7 +187,7 @@ def seconds_to_shortened(number, max_terms=2):
   times = []
   for (n, c) in [d, h, m, s]:
     if n > 0:
-      times.append('{}{}'.format(n, c))
+      times.append(f'{n}{c}')
   return ''.join(times[:max_terms])
 
 def bytestring(n):
@@ -196,4 +196,4 @@ def bytestring(n):
   while n >= 1024 and i < len(tiers):
     n = n / 1024
     i += 1
-  return "{:.1f}".format(n) + tiers[i]
+  return f'{n:.1f}{tiers[i]}'

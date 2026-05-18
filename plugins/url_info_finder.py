@@ -103,7 +103,7 @@ class url_info_finder(helpers.Plugin):
     'musem',
     'travel',
   ]
-  url_regex = re.compile('((https?://|www.)\S+)|(\S+\.([a-z][a-z]|{})\S*)'.format('|'.join(TLDs)), re.IGNORECASE)
+  url_regex = re.compile(rf'((https?://|www.)\S+)|(\S+\.([a-z][a-z]|{"|".join(TLDs)})\S*)', re.IGNORECASE)
   reddit_regex = re.compile('reddit.com', re.IGNORECASE)
   url_prefix = re.compile('(https?://www\.)|(https?://|www\.)', re.IGNORECASE)
   ffprobe_types = [
@@ -118,7 +118,7 @@ class url_info_finder(helpers.Plugin):
     'opus',
     'webm',
   ]
-  ffprobe_regex = re.compile('\.({})\Z'.format('|'.join(ffprobe_types)), re.IGNORECASE)
+  ffprobe_regex = re.compile(rf'\.({"|".join(ffprobe_types)})\Z', re.IGNORECASE)
 
   tax_strs = [
     "€{amount:.02f} has been deducted from {nick}'s account.",
@@ -149,13 +149,13 @@ class url_info_finder(helpers.Plugin):
       'format_eurotax': '\x038,1',
     }
     self.config = helpers.parse_config('settings_url_info_finder.json', default_config)
-    self.tax_regex = re.compile('\\b({})\\b'.format('|'.join(self.config['taxed_memes'])), re.IGNORECASE)
+    self.tax_regex = re.compile(rf'\b({"|".join(self.config["taxed_memes"])})\b', re.IGNORECASE)
     random.seed()
 
   def handle_pm(self, msg_data):
     if msg_data['message'].lower().startswith('!reload'):
       self.config = helpers.parse_config('settings_btc.json', self.default_config)
-      self.tax_regex = re.compile('\\b({})\\b'.format('|'.join()), re.IGNORECASE)
+      self.tax_regex = re.compile(rf'\b({"|".join()})\b', re.IGNORECASE)
     # Ignore private messages, to prevent from flooding/api usage etc.
     pass
 
@@ -186,7 +186,7 @@ class url_info_finder(helpers.Plugin):
         links = len(url_info_list)
         tax = (memes*self.config['taxrate_memes'] + links*self.config['taxrate_links']) * random.uniform(0.95, 1.5)
       except BaseException as e:
-        logging.debug('Taxation problem: {}'.format(e))
+        logging.debug(f'Taxation problem: {e}')
 
     if info_string:
       try:
@@ -201,9 +201,9 @@ class url_info_finder(helpers.Plugin):
         if len(info_string_b) > max_len:
           info_string = info_string_b[0:max_len-5].decode('utf-8', 'ignore') + "(...)]"
 
-        self.parent.send_msg(msg_data["channel"], '{}{}{}'.format(color, info_string, tax_str))
+        self.parent.send_msg(msg_data["channel"], f'{color}{info_string}{tax_str}')
       except BaseException as e:
-        logging.debug('Taxation message problem: {}'.format(e))
+        logging.debug(f'Taxation message problem: {e}')
 
   def search_add_database(self, url, nick):
     '''
@@ -214,7 +214,7 @@ class url_info_finder(helpers.Plugin):
     # We replace the usual prefix, and lowercase the hostname part
     url = self.url_prefix.sub("", url, 1)
     hostname, *tail = url.split("/", 1) + [""]  # Guarantees that tail will contain a non-empty list
-    url = "{}/{}".format(hostname.lower(), tail[0])
+    url = f"{hostname.lower()}/{tail[0]}"
     url = replace_nitter(url)
     url = replace_youtube(url)
 
@@ -250,11 +250,11 @@ class url_info_finder(helpers.Plugin):
       data['nick_last'] = ufeff_nick(data['nick_last'])
 
       if data['total'] == 1:
-        return " |1: {nick_first} {time_first}".format(**data)
+        return f" |1: {data['nick_first']} {data['time_first']}"
       elif data['nick_first'] == data['nick_last']:
-        return " |1: {nick_first} {time_first}, {total}: {time_last}".format(**data)
+        return f" |1: {data['nick_first']} {data['time_first']}, {data['total']}: {data['time_last']}"
       else:
-        return " |1: {nick_first} {time_first}, {total}: {nick_last} {time_last}".format(**data)
+        return f" |1: {data['nick_first']} {data['time_first']}, {data['total']}: {data['nick_last']} {data['time_last']}"
     else:
       # Add to both tables
       c.execute("INSERT INTO URL(total, url, first_nick, first_time, last_nick, last_time) VALUES(?,?,?,?,?,?)", (1, url, nick, t, nick, t))
@@ -296,7 +296,7 @@ class url_info_finder(helpers.Plugin):
       source = opener.open(url_safe)
       logging.debug("url open:%s", url)
     except BaseException as e:
-      logging.debug("url_finder error: could not open site - {} - {}".format(url, e))
+      logging.debug(f"url_finder error: could not open site - {url} - {e}")
       return None, None
 
     redirect_warning = ""
@@ -361,7 +361,7 @@ class url_info_finder(helpers.Plugin):
       procout = proc.communicate()[0].strip().decode('utf-8')
       media = json.loads(procout)
     except BaseException as e:
-      logging.error('ffprobe error - {}'.format(e))
+      logging.error(f'ffprobe error - {e}')
       return
     try:
       # Videos seem to be well behaved on this. Ogg files not so much.
@@ -386,7 +386,7 @@ class url_info_finder(helpers.Plugin):
       size = None
     metadata = ', '.join(filter(None, [duration, size]))
     if metadata:
-      return_string = '{} ({})'.format(return_string, metadata)
+      return_string = f'{return_string} ({metadata})'
     return return_string
 
   def github_info(self, url):
@@ -447,14 +447,14 @@ class url_info_finder(helpers.Plugin):
       yt_id = yt_id.partition("&v=")[2]
 
     yt_api_key = self.config['api_keys']['youtube']
-    api_url = 'https://www.googleapis.com/youtube/v3/videos?id={}&key={}&part=snippet,statistics,contentDetails'.format(yt_id, yt_api_key)
+    api_url = f'https://www.googleapis.com/youtube/v3/videos?id={yt_id}&key={yt_api_key}&part=snippet,statistics,contentDetails'
     logging.debug("api url:%s", api_url)
 
     try:
       req = urllib.request.urlopen(api_url)
       result = json.loads(req.read().decode('utf-8'))
     except BaseException as e:
-      logging.error('url_finder error - json load fail: {}'.format(e))
+      logging.error(f'url_finder error - json load fail: {e}')
       return None
 
     try:
@@ -468,11 +468,11 @@ class url_info_finder(helpers.Plugin):
         'stats': {k: helpers.shorten_number(v, 5) for (k, v) in item['statistics'].items()},
         'duration': helpers.shorten_period(item['contentDetails']['duration']),
       }
-      info = "(You)Tube: {s[channelTitle]} - {s[title]} ({duration}, {stats[viewCount]} views)".format(**data)
-      logging.debug('url_finder: YT info is {}'.format(info))
+      info = f"(You)Tube: {data['s']['channelTitle']} - {data['s']['title']} ({data['duration']}, {data['stats']['viewCount']} views)"
+      logging.debug(f'url_finder: YT info is {info}')
       return info
     except BaseException as e:
-      logging.error('url_finder error - parse fail: {}'.format(e))
+      logging.error(f'url_finder error - parse fail: {e}')
 
   def twitter_info(self, url):
     # We have to use oembed API because twitter is forcing JS on regular pages and auth on other APIs
@@ -489,7 +489,7 @@ class url_info_finder(helpers.Plugin):
       return_str = html.unescape(return_str).replace(r'\/', '/')
       return_str = decode_escapes(return_str).strip()
     except BaseException as e:
-      logging.error('url_finder error - twitter oembed load fail: {}'.format(e))
+      logging.error(f'url_finder error - twitter oembed load fail: {e}')
       return None
 
     logging.debug('Twitter result string: ' + return_str)
@@ -503,7 +503,7 @@ class url_info_finder(helpers.Plugin):
       # UPDATE: try 4MB since twitter is garbage
       logging.debug("Attempting to read from url: "+url)
       data = source.read(4194304)
-      logging.debug("Source read (size {:d}), attempting to parse with BeautifulSoup...".format(len(data)))
+      logging.debug(f"Source read (size {len(data):d}), attempting to parse with BeautifulSoup...")
       soup = BeautifulSoup(data, 'html.parser')
       #soup = BeautifulSoup(source.read(8388608), 'html.parser')
     except BaseException as e:
@@ -560,7 +560,7 @@ class url_info_finder(helpers.Plugin):
       if info is not None:
         titlestr = helpers.sanitise_string(info).strip()  # Sanitise first since that will convert unicode whitespace
         # Add info about number of times linked
-        info = '[{}{}]'.format(titlestr, self.search_add_database(url, nick))
+        info = f'[{titlestr}{self.search_add_database(url, nick)}]'
 
         if len(info) > max_len:
           info = info[0:max_len-5]

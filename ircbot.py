@@ -48,28 +48,28 @@ class botframe():
       module_ref = importlib.reload(module_ref)
       inst_ref = getattr(module_ref, plugin)(self)
       self.loaded_plugins[plugin] = (inst_ref, module_ref)
-      logging.info('Reloaded plugin {}.'.format(plugin))
+      logging.info(f'Reloaded plugin {plugin}.')
     except BaseException as e:
-      logging.error('Unable to reload plugin {}: {}'.format(plugin, e))
+      logging.error(f'Unable to reload plugin {plugin}: {e}')
 
   def unload_plugin(self, plugin):
     if plugin in self.loaded_plugins:
       try:
         del self.loaded_plugins[plugin]
-        logging.info('Unloaded plugin {}.'.format(plugin))
+        logging.info(f'Unloaded plugin {plugin}.')
       except BaseException as e:
-        logging.error('Unable to unload plugin {}: {}'.format(plugin, e))
+        logging.error(f'Unable to unload plugin {plugin}: {e}')
     else:
-      logging.warning('Plugin not loaded: {}'.format(plugin))
+      logging.warning(f'Plugin not loaded: {plugin}')
 
   def import_plugin(self, plugin):
     try:
-      module_ref = importlib.import_module('plugins.{}'.format(plugin))
+      module_ref = importlib.import_module(f'plugins.{plugin}')
       inst_ref = getattr(module_ref, plugin)(self)
       self.loaded_plugins[plugin] = (inst_ref, module_ref)
-      logging.info('Loaded plugin {}.'.format(plugin))
+      logging.info(f'Loaded plugin {plugin}.')
     except BaseException as e:
-      logging.error('Unable to load plugin {}: {}'.format(plugin, e))
+      logging.error(f'Unable to load plugin {plugin}: {e}')
 
   def send(self, string):
     try:
@@ -86,8 +86,8 @@ class botframe():
       self.irc = ssl.wrap_socket(self.irc)
     try:
       self.irc.connect((conf['server'], conf['port']))
-      self.send('NICK {nick}'.format(**conf))
-      self.send('USER {nick} muh python bot'.format(**conf))
+      self.send(f"NICK {conf['nick']}")
+      self.send(f"USER {conf['nick']} muh python bot")
       if conf['identifymsg_enabled']:
         self.send('CAP REQ identify-msg')
         self.send('CAP END')
@@ -114,10 +114,10 @@ class botframe():
   def handle_welcome(self, sender, params):
     conf = self.config['connection']
     if conf['nickserv_enabled']:
-      self.send('PRIVMSG NickServ :IDENTIFY {nickserv_nick} {nickserv_pass}'.format(**conf))
+      self.send(f"PRIVMSG NickServ :IDENTIFY {conf['nickserv_nick']} {conf['nickserv_pass']}")
       logging.info('Waiting for login...')
     time.sleep(1)  # this should be replaced by waiting for " 396 YourNick unaffiliated/youraccount :is now your hidden host (set by services.)", but that is not standard, so I'm not sure.
-    self.send('mode {nick} +B'.format(**conf))
+    self.send(f"mode {conf['nick']} +B")
     # Join all channels
     logging.info('Joining channels')
     for channel in conf['channel_list']:
@@ -161,7 +161,7 @@ class botframe():
       self.call_plugin_handlers('handle_message', msg_data)
 
   def send_msg(self, recipient, msg):  # method for sending privmsg, takes care of timing etc. to prevent flooding
-    command = 'PRIVMSG {} :{}'.format(recipient, msg)
+    command = f'PRIVMSG {recipient} :{msg}'
     self.msg_buffer.append(command)
 
     # Schedule the message to be send, depending on the buffer size, 1message each 2 seconds.
@@ -204,7 +204,7 @@ class botframe():
     try:
       data = self.irc.recv(4096).decode('utf-8', errors="replace")
     except socket.error as e:
-      logging.warning('Error receiving: {}'.format(e))
+      logging.warning(f'Error receiving: {e}')
       return None
 
     # If the data is empty, the connection must be broken, we should reconnect
@@ -232,7 +232,7 @@ class botframe():
         else:
           getattr(instance, handler)()
       except BaseException as e:
-        logging.error('Error in {} for plugin {}: {}'.format(handler, plugin_name, e))
+        logging.error(f'Error in {handler} for plugin {plugin_name}: {e}')
 
   def main(self):
     self.connect()

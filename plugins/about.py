@@ -19,7 +19,7 @@ class about(helpers.Plugin):
       'commit': self.get_commit_info(),
       'plugins': ', '.join(sorted(self.parent.loaded_plugins.keys())),
     }
-    response = "Running {bot_name} - version {commit} ({url}). Loaded plugins: {plugins}.".format(**data)
+    response = f"Running {data['bot_name']} - version {data['commit']} ({data['url']}). Loaded plugins: {data['plugins']}."
     self.parent.send_msg(msg_data["channel"], response)
 
   def get_commit_info(self):

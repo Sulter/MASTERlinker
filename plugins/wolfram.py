@@ -26,7 +26,7 @@ class wolfram(helpers.Plugin):
   def wolfram_thread(self, msg_data):
     phrase = msg_data["message"].replace("!WA ","", 1).replace(" ", "%20").replace("&", "").replace("/", "%2F")
     if phrase:
-      url = 'http://api.wolframalpha.com/v2/query?input={}&appid={}'.format(phrase, self.config['api_key'])
+      url = f'http://api.wolframalpha.com/v2/query?input={phrase}&appid={self.config["api_key"]}'
       try:
         string = urllib.request.urlopen(url).read(10000000)
       except:

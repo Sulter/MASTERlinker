@@ -29,7 +29,7 @@ class bridge(helpers.Plugin):
       if os.path.exists(self.config['socket']):
         os.unlink(self.config['socket'])
       self.socket.bind(self.config['socket'])
-      logging.debug('bridge: server started at {}'.format(self.config['socket']))
+      logging.debug(f'bridge: server started at {self.config["socket"]}')
       threading.Thread(target=self.server_loop).start()
     else:
       threading.Thread(target=self.client_loop).start()
@@ -45,7 +45,7 @@ class bridge(helpers.Plugin):
         return None
       else:
         msg_data['message'] = msg_data['message'][len(self.config['delimiter']):]
-    message = '{nick}:{message}\n'.format(**msg_data)
+    message = f'{msg_data['nick']}:{msg_data['message']}\n'
     if self.config['server']:
       for c in self.connections:
         self.send_message(c, message)
@@ -56,13 +56,13 @@ class bridge(helpers.Plugin):
     try:
       sock.send(message.encode('utf-8'))
     except BaseException as e:
-      logging.debug('bridge: handle_message exception {}'.format(e))
+      logging.debug(f'bridge: handle_message exception {e}')
 
   def parse_message(self, m):
     try:
       nick, msg = m.split(':', 1)
       nick = nick[0]+'\ufeff'+nick[1:]
-      message = '{}<{}> {}'.format(self.config['in_prefix'], nick, msg)
+      message = f'{self.config["in_prefix"]}<{nick}> {msg}'
       self.parent.send_msg(self.config['channel'], message)
     except ValueError:
       # Erroneous data on the socket
@@ -75,7 +75,7 @@ class bridge(helpers.Plugin):
       self.socket.settimeout(5)
       try:
         self.socket.connect(self.config['socket'])
-        logging.debug('bridge: client connected to {}'.format(self.config['socket']))
+        logging.debug(f'bridge: client connected to {self.config["socket"]}')
         self.socket.settimeout(None)
         connected = True
       except socket.timeout as e:
@@ -114,6 +114,6 @@ class bridge(helpers.Plugin):
     while True:
       conn = self.socket.accept()
       if conn[0]:
-        logging.debug('bridge: server accepted connection from {}'.format(conn[1]))
+        logging.debug(f'bridge: server accepted connection from {conn[1]}')
         self.connections.append(conn[0])
         threading.Thread(target=self.server_conn_loop, args=(conn[0],)).start()
